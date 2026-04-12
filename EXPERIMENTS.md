@@ -58,8 +58,9 @@ device: mps
 - [x] GitHub push: https://github.com/tomosoko/BoneScintiVision
 - [x] Phase 2実装: score_burden.py (TBB/BSI/部位別スコア) + api/app.py
 - [x] validate_detector.py 部位別Recall + 病変数MAE追加
-- [ ] 訓練完了後: `python3.12 models/validate_detector.py` → 最終精度確認
-- [ ] EXP-002 計画（前後面デュアルビュー対応）
+- [x] EXP-002準備: generate_dataset_v2.py + train_detector_v2.py + dicom_reader.py
+- [x] eval_final.py（訓練後一括評価スクリプト）
+- [ ] 訓練完了後: `python3.12 models/eval_final.py` → 最終精度確認・EXPERIMENTS.md更新
 
 ---
 
