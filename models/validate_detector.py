@@ -85,6 +85,14 @@ def run_validation(model_path: str, n_test: int = 100) -> Dict:
     tp_total = fp_total = fn_total = 0
     iou_threshold = 0.3
 
+    # 部位別集計 (Y座標4分割)
+    region_keys = ["head_neck", "thorax", "abdomen_pelvis", "extremities"]
+    region_tp = {k: 0 for k in region_keys}
+    region_fn = {k: 0 for k in region_keys}
+
+    # カウント誤差（GT病変数 vs 検出数）
+    count_errors = []
+
     print(f"  検証中 ({n_test}枚)...")
     for i in range(n_test):
         seed = int(rng.integers(1e9))
@@ -111,17 +119,29 @@ def run_validation(model_path: str, n_test: int = 100) -> Dict:
 
         # GT ボックス
         gt_boxes = []
+        gt_regions = []
         for les in lesions:
             x = les["x"] * scale + px
             y = les["y"] * scale + py
             s = les["size"] * scale * 1.1
             gt_boxes.append([x - s, y - s, x + s, y + s])
+            yc = y / 256.0
+            if yc < 0.25:
+                gt_regions.append("head_neck")
+            elif yc < 0.55:
+                gt_regions.append("thorax")
+            elif yc < 0.75:
+                gt_regions.append("abdomen_pelvis")
+            else:
+                gt_regions.append("extremities")
 
         # 検出ボックス
         pred_boxes = []
         if boxes is not None and len(boxes) > 0:
             for b in boxes.xyxy.cpu().numpy():
                 pred_boxes.append(b[:4].tolist())
+
+        count_errors.append(len(pred_boxes) - len(gt_boxes))
 
         # IoU マッチング（簡易）
         matched_gt = set()
@@ -138,14 +158,22 @@ def run_validation(model_path: str, n_test: int = 100) -> Dict:
             if best_iou >= iou_threshold and best_gi >= 0:
                 tp_total += 1
                 matched_gt.add(best_gi)
+                region_tp[gt_regions[best_gi]] += 1
             else:
                 fp_total += 1
-        fn_total += len(gt_boxes) - len(matched_gt)
+
+        for gi in range(len(gt_boxes)):
+            if gi not in matched_gt:
+                fn_total += 1
+                region_fn[gt_regions[gi]] += 1
 
     # メトリクス
     precision = tp_total / (tp_total + fp_total + 1e-9)
     recall    = tp_total / (tp_total + fn_total + 1e-9)
     f1 = 2 * precision * recall / (precision + recall + 1e-9)
+
+    mae_count = float(np.mean(np.abs(count_errors)))
+    me_count  = float(np.mean(count_errors))
 
     print(f"\n{'='*60}")
     print(f"  検出精度評価 (n={n_test}, IoU>{iou_threshold})")
@@ -153,10 +181,20 @@ def run_validation(model_path: str, n_test: int = 100) -> Dict:
     print(f"  Precision : {precision:.3f}")
     print(f"  Recall    : {recall:.3f}")
     print(f"  F1        : {f1:.3f}")
+    print(f"  病変数誤差: MAE={mae_count:.2f}  ME={me_count:+.2f}")
+    print(f"\n  部位別 Recall:")
+    for rk in region_keys:
+        r_tp = region_tp[rk]
+        r_fn = region_fn[rk]
+        r_rec = r_tp / (r_tp + r_fn + 1e-9)
+        print(f"    {rk:20s}: {r_rec:.3f}  (TP={r_tp}, FN={r_fn})")
     print(f"{'='*60}")
 
     return {"precision": precision, "recall": recall, "f1": f1,
-            "tp": tp_total, "fp": fp_total, "fn": fn_total}
+            "tp": tp_total, "fp": fp_total, "fn": fn_total,
+            "mae_count": mae_count, "me_count": me_count,
+            "region_recall": {k: region_tp[k] / (region_tp[k] + region_fn[k] + 1e-9)
+                              for k in region_keys}}
 
 
 def compute_iou(box1, box2) -> float:
