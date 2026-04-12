@@ -17,6 +17,7 @@ import time
 import numpy as np
 import cv2
 from pathlib import Path
+from typing import Dict
 
 BASE_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(BASE_DIR))
@@ -172,7 +173,6 @@ def compute_iou(box1, box2) -> float:
 
 
 if __name__ == "__main__":
-    from typing import Dict
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default=str(RUNS_DIR / "bone_scinti_detector_v1" / "weights" / "best.pt"))
     parser.add_argument("--n", type=int, default=100)
