@@ -56,8 +56,37 @@ device: mps
 - [x] データセット生成（1020 train / 180 val, 1.2s/8workers）
 - [x] 訓練開始 `python3.12 models/train_detector.py`
 - [x] GitHub push: https://github.com/tomosoko/BoneScintiVision
-- [ ] 訓練完了後: `python3.12 models/validate_detector.py`
-- [ ] Phase 2: 部位別スコアリング強化
+- [x] Phase 2実装: score_burden.py (TBB/BSI/部位別スコア) + api/app.py
+- [x] validate_detector.py 部位別Recall + 病変数MAE追加
+- [ ] 訓練完了後: `python3.12 models/validate_detector.py` → 最終精度確認
+- [ ] EXP-002 計画（前後面デュアルビュー対応）
+
+---
+
+## EXP-002 | 前後面デュアルビュー対応（計画）
+
+**日付:** 未定（EXP-001完了後）
+
+### 目的
+- 前面（anterior）+ 後面（posterior）デュアルビュー対応で検出精度向上
+  - 後面では脊椎・肩甲骨病変がより明瞭
+- データセット2倍化（anterior+posterior 各1200枚 = 2400枚）
+
+### 変更点（案）
+
+```yaml
+model: yolo11m.pt  # Sから Medium へアップグレード
+data: data/yolo_dataset_v2/ (dual-view, 2400枚)
+  生成: generate_dataset_v2.py (anterior + posterior)
+  画像: 512×256px (前後横並べ、横長フォーマット)
+epochs: 150 (patience=30)
+imgsz: 512
+```
+
+### 期待効果
+- 脊椎・肋骨・肩甲骨のRecall向上（現状FNが多い領域）
+- 臨床的に意味のある前後面コンビネーション評価
+- TBBスコアの精度向上
 
 ---
 
