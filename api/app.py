@@ -1,0 +1,106 @@
+"""
+BoneScintiVision — FastAPI スコアリングエンドポイント
+
+訓練済みモデルで骨シンチグラフィ画像の骨転移負荷スコアを返す。
+
+起動:
+  cd /Users/kohei/develop/research/BoneScintiVision
+  uvicorn api.app:app --reload --port 8765
+
+エンドポイント:
+  POST /score          - 画像アップロード → スコア返却
+  GET  /health         - ヘルスチェック
+"""
+
+import io
+import sys
+import numpy as np
+import cv2
+from pathlib import Path
+from typing import List, Optional
+
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
+BASE_DIR = Path(__file__).parent.parent
+sys.path.insert(0, str(BASE_DIR))
+
+from models.score_burden import compute_bone_burden_score
+
+app = FastAPI(
+    title="BoneScintiVision API",
+    description="骨シンチグラフィ hot spot 検出・負荷スコアリング",
+    version="0.1.0",
+)
+
+MODEL_PATH = BASE_DIR / "runs" / "bone_scinti_detector_v1" / "weights" / "best.pt"
+_model = None
+
+
+def get_model():
+    global _model
+    if _model is None:
+        if not MODEL_PATH.exists():
+            raise RuntimeError(f"モデルが見つかりません: {MODEL_PATH}")
+        from ultralytics import YOLO
+        _model = YOLO(str(MODEL_PATH))
+    return _model
+
+
+class ScoreResponse(BaseModel):
+    n_lesions: int
+    total_bone_burden: float   # % of image area
+    bsi_equivalent: float      # BSI相当スコア
+    mean_conf: float
+    region_scores: dict
+    risk_stage: dict
+
+
+@app.get("/health")
+def health():
+    model_ready = MODEL_PATH.exists()
+    return {"status": "ok", "model_ready": model_ready}
+
+
+@app.post("/score", response_model=ScoreResponse)
+async def score_image(
+    file: UploadFile = File(...),
+    conf: float = 0.25,
+):
+    """
+    骨シンチグラフィ画像をアップロードしてスコアを取得。
+
+    - **file**: PNG/JPEG画像（256×256推奨）
+    - **conf**: 検出信頼度しきい値（デフォルト0.25）
+    """
+    contents = await file.read()
+    nparr = np.frombuffer(contents, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if img is None:
+        raise HTTPException(status_code=400, detail="画像のデコードに失敗しました")
+
+    try:
+        model = get_model()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    results = model(img, verbose=False, conf=conf)
+    boxes = results[0].boxes
+
+    detections = []
+    if boxes is not None and len(boxes) > 0:
+        xyxy = boxes.xyxy.cpu().numpy()
+        confs = boxes.conf.cpu().numpy()
+        for b, c in zip(xyxy, confs):
+            x1, y1, x2, y2 = b[:4]
+            detections.append({
+                "x": float((x1 + x2) / 2),
+                "y": float((y1 + y2) / 2),
+                "w": float(x2 - x1),
+                "h": float(y2 - y1),
+                "conf": float(c),
+            })
+
+    score = compute_bone_burden_score(detections, image_size=img.shape[0])
+    return JSONResponse(content=score)

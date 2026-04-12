@@ -28,7 +28,19 @@ batch: 32
 device: mps
 ```
 
-### 結果
+### 中間結果（2026-04-12, 訓練中）
+
+| epoch | mAP50 | Precision | Recall |
+|---|---|---|---|
+| 5 | 0.190 | 0.334 | 0.450 |
+| 6 | 0.600 | 0.694 | 0.575 |
+| 7 | 0.736 | 0.930 | 0.635 |
+| 8 | 0.675 | 0.878 | 0.606 |
+| ~12 | 0.784 | 0.971 | 0.719 |
+
+**状態:** 訓練中（epoch ~12/150, mAP50上昇傾向良好）
+
+### 最終結果
 *(訓練完了後に記録)*
 
 | 指標 | 値 |
@@ -39,9 +51,11 @@ device: mps
 | 訓練時間 | — |
 
 ### 次のステップ
-- [ ] 訓練実行 `python3.12 models/train_detector.py --generate`
-- [ ] 検証 `python3.12 models/validate_detector.py`
-- [ ] 合成データ品質の視覚確認
+- [x] データセット生成（1020 train / 180 val, 1.2s/8workers）
+- [x] 訓練開始 `python3.12 models/train_detector.py`
+- [x] GitHub push: https://github.com/tomosoko/BoneScintiVision
+- [ ] 訓練完了後: `python3.12 models/validate_detector.py`
+- [ ] Phase 2: 部位別スコアリング強化
 
 ---
 
