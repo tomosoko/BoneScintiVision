@@ -39,6 +39,7 @@ def train(generate: bool = False, epochs: int = 150, batch: int = 16):
         epochs=epochs,
         batch=batch,
         imgsz=512,
+        rect=True,       # 矩形訓練: 512×256 → アスペクト比維持（パディング最小化）
         device="mps",
         project=str(BASE_DIR / "runs"),
         name=RUN_NAME,
@@ -50,7 +51,7 @@ def train(generate: bool = False, epochs: int = 150, batch: int = 16):
         hsv_v=0.3,
         hsv_h=0.0,
         hsv_s=0.0,
-        mosaic=0.5,
+        mosaic=0.0,      # モザイク禁止（前後面の対応関係が崩れるため）
         patience=30,
         workers=4,
         verbose=True,
