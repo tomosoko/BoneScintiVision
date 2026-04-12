@@ -77,10 +77,15 @@ def generate_one_v2(args_tuple) -> Tuple[str, str, int]:
 
     lesions = phantom.sample_lesion_sites(n_lesions) if n_lesions > 0 else []
 
-    # 前面・後面ともに同じ病変セットを使用（両面から見える）
-    # 後面では一部の病変が左右反転して描画される
+    # 後面ビュー: 解剖学的に正しいX座標反転（get_posterior_view が左右反転するため）
+    lesions_post = []
+    for les in lesions:
+        lp = les.copy()
+        lp["x"] = phantom.IMG_W - les["x"]  # 後面では左右反転
+        lesions_post.append(lp)
+
     img_ant = sim.acquire(base_ant, lesions, view="anterior", add_physiological=True)
-    img_post = sim.acquire(base_post, lesions, view="posterior", add_physiological=True)
+    img_post = sim.acquire(base_post, lesions_post, view="posterior", add_physiological=True)
 
     # 各面を 128×256 にリサイズしてから 256×256 にパディング
     def resize_and_pad(img, target_w=ANT_W, target_h=IMG_H):
@@ -102,43 +107,31 @@ def generate_one_v2(args_tuple) -> Tuple[str, str, int]:
 
     # ─── ラベル生成 ───────────────────────────────────────────────────────────
     yolo_labels = []
-    for les in lesions:
+    for les, lp in zip(lesions, lesions_post):
         # 前面座標 (x ∈ [0, ANT_W])
         x_ant = les["x"] * scale_ant + px_ant
         y_ant = les["y"] * scale_ant + py_ant
         s_ant = les["size"] * scale_ant
 
-        x_center_ant = x_ant / FULL_W
-        y_center = y_ant / IMG_H
-        box_w = (s_ant * 2.2) / FULL_W
-        box_h = (s_ant * 2.2) / IMG_H
-
-        x_center_ant = float(np.clip(x_center_ant, 0.01, 0.49))
-        y_center     = float(np.clip(y_center, 0.01, 0.99))
-        box_w        = float(np.clip(box_w, 0.005, 0.25))
-        box_h        = float(np.clip(box_h, 0.005, 0.49))
+        x_center_ant = float(np.clip(x_ant / FULL_W, 0.01, 0.49))
+        y_center_ant = float(np.clip(y_ant / IMG_H, 0.01, 0.99))
+        box_w_ant    = float(np.clip((s_ant * 2.2) / FULL_W, 0.005, 0.25))
+        box_h_ant    = float(np.clip((s_ant * 2.2) / IMG_H, 0.005, 0.49))
 
         yolo_labels.append(
-            f"{CLASS_HOT_SPOT} {x_center_ant:.6f} {y_center:.6f} {box_w:.6f} {box_h:.6f}"
+            f"{CLASS_HOT_SPOT} {x_center_ant:.6f} {y_center_ant:.6f} {box_w_ant:.6f} {box_h_ant:.6f}"
         )
 
-        # 後面座標: 後面は骨盤レベルを除き前面とほぼ同じ位置に見える
-        # ただし左右は PhantomのY軸回転で同じ病変が後面でも見える想定
-        # X座標: 後面では左右反転（後面パネルは右半分 [0.5, 1.0]）
-        x_post_orig = les["x"] * scale_post + px_post
-        x_post_flipped = POST_W - x_post_orig  # 左右反転
-        y_post = les["y"] * scale_post + py_post
+        # 後面座標: lp["x"] は phantom.IMG_W - les["x"] で既に反転済み
+        # 後面パネルは右半分 (ANT_W〜FULL_W) に配置
+        x_post = lp["x"] * scale_post + px_post
+        y_post = lp["y"] * scale_post + py_post
+        s_post = lp["size"] * scale_post
 
-        x_center_post = (ANT_W + x_post_flipped) / FULL_W
-        y_center_post = y_post / IMG_H
-        s_post = les["size"] * scale_post
-        box_w_post = (s_post * 2.2) / FULL_W
-        box_h_post = (s_post * 2.2) / IMG_H
-
-        x_center_post = float(np.clip(x_center_post, 0.51, 0.99))
-        y_center_post = float(np.clip(y_center_post, 0.01, 0.99))
-        box_w_post    = float(np.clip(box_w_post, 0.005, 0.25))
-        box_h_post    = float(np.clip(box_h_post, 0.005, 0.49))
+        x_center_post = float(np.clip((ANT_W + x_post) / FULL_W, 0.51, 0.99))
+        y_center_post = float(np.clip(y_post / IMG_H, 0.01, 0.99))
+        box_w_post    = float(np.clip((s_post * 2.2) / FULL_W, 0.005, 0.25))
+        box_h_post    = float(np.clip((s_post * 2.2) / IMG_H, 0.005, 0.49))
 
         yolo_labels.append(
             f"{CLASS_HOT_SPOT} {x_center_post:.6f} {y_center_post:.6f} {box_w_post:.6f} {box_h_post:.6f}"
