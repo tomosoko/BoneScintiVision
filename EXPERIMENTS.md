@@ -81,25 +81,42 @@ EXP-002（前後面デュアルビュー + yolo11m）で全部位Recall向上を
 
 ---
 
-## EXP-002 | 前後面デュアルビュー対応（計画）
+## EXP-002 | 前後面デュアルビュー対応
 
-**日付:** 未定（EXP-001完了後）
+**日付:** 2026-04-13
+**実施者:** [氏名]
+**環境:** Mac Mini M4 Pro 64GB / Python 3.12 / MPS GPU
 
 ### 目的
 - 前面（anterior）+ 後面（posterior）デュアルビュー対応で検出精度向上
   - 後面では脊椎・肩甲骨病変がより明瞭
-- データセット2倍化（anterior+posterior 各1200枚 = 2400枚）
+- EXP-001の四肢Recall=0.691を改善
 
-### 変更点（案）
+### 設定
 
 ```yaml
 model: yolo11m.pt  # Sから Medium へアップグレード
-data: data/yolo_dataset_v2/ (dual-view, 2400枚)
-  生成: generate_dataset_v2.py (anterior + posterior)
+data: data/yolo_dataset_v2/ (dual-view, 2040 train / 360 val)
+  生成: synth/generate_dataset_v2.py (anterior + posterior, 11.4s)
   画像: 512×256px (前後横並べ、横長フォーマット)
+  ラベル: 前面 x∈[0,0.5], 後面 x∈[0.5,1.0]
 epochs: 150 (patience=30)
 imgsz: 512
+batch: 16
+rect: True  # アスペクト比維持
+fliplr: 0.0  # 左右反転禁止（前後面の意味が変わるため）
+mosaic: 0.0  # モザイク禁止
+device: mps
 ```
+
+### 中間結果
+
+| epoch | mAP50 | Precision | Recall |
+|---|---|---|---|
+| 1 | 0.0773 | 0.104 | 0.591 |
+| 2 | **0.649** | 0.825 | 0.589 |
+
+**状態:** 🔄 訓練中（epoch 2/150完了）PID 9750 /tmp/bonescinti_v2_train.log
 
 ### 期待効果
 - 脊椎・肋骨・肩甲骨のRecall向上（現状FNが多い領域）
