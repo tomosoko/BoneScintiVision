@@ -138,9 +138,40 @@ EXP-003: データ拡張強化 or アンサンブルでRecall改善を検討。
 - weights: `runs/bone_scinti_detector_v2/weights/best.pt`
 - results: `runs/bone_scinti_detector_v2/results.csv`
 
+### 詳細評価（2026-04-13, validate_detector_v2.py実行）
+
+デュアルビュー形式で再評価（前面のみ、IoU>0.3）:
+
+| 指標 | 値 |
+|---|---|
+| Precision | **0.969** |
+| Recall | **0.823** |
+| F1 | **0.890** |
+| 病変数MAE | 0.72 (ME=-0.58 やや過少) |
+
+#### 部位別 Recall（前面, 100枚）
+| 部位 | Recall | TP | FN |
+|---|---|---|---|
+| head_neck | 0.903 | 28 | 3 |
+| thorax | 0.862 | 188 | 30 |
+| abdomen_pelvis | 0.711 ← 最低 | 64 | 26 |
+| extremities | 0.804 | 37 | 9 |
+
+**EXP-001比較（前面Recall）:**
+| 部位 | EXP-001 | EXP-002 | 差分 |
+|---|---|---|---|
+| head_neck | 0.800 | **0.903** | +10.3pp ↑ |
+| thorax | 0.832 | **0.862** | +3.0pp ↑ |
+| abdomen_pelvis | 0.750 | **0.711** | -3.9pp ↓ |
+| extremities | 0.691 | **0.804** | **+11.3pp ↑** |
+
+**考察:** 全体Recall 0.785→0.823 (+3.8pp)。四肢(0.691→0.804)と頭頸部で大幅改善。
+腹部骨盤のみわずかに低下（後面に頼れるため前面単独評価では不利）。
+デュアルビューの総合Recall向上は期待通り。
+
 ### 次のステップ
-- [ ] EXP-003: Recall改善（データ拡張・アンサンブル検討）
-- [ ] 部位別Recall評価スクリプト実行（v2対応版）
+- [ ] EXP-003: データ拡張強化 or アンサンブルで腹部骨盤Recall改善
+- [x] v2 部位別Recall評価スクリプト実装・実行完了
 
 ---
 
