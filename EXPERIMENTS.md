@@ -43,19 +43,29 @@ device: mps
 
 **状態:** ✅ 訓練完了（epoch 150/150）
 
-### 最終結果（2026-04-13 確認）
+### 最終結果（2026-04-13 eval_final.py実行・確定）
 
 | 指標 | 値 |
 |---|---|
-| mAP50 | **0.7839** (78.4%) |
-| mAP50-95 | **0.6948** (69.5%) |
-| Precision | 0.5746 (57.5%) |
-| Recall | **0.3691** (36.9%) ← 低め |
+| mAP50 (YOLO val) | **0.7839** (78.4%) |
+| Precision | **0.955** |
+| Recall | **0.785** |
+| F1 | **0.862** |
+| 病変数MAE | 0.84 (ME=-0.68 やや過少検出) |
 | 訓練 epoch | 150 / 150 |
 
-**考察:** mAP50=78%は良好だがRecall=37%が課題。
-見逃し（FN）が多い = 病変見落としリスク。
-EXP-002（デュアルビュー + yolo11m）で改善予定。
+#### 部位別 Recall（100枚評価）
+| 部位 | Recall | TP | FN |
+|---|---|---|---|
+| head_neck | 0.800 | 16 | 4 |
+| thorax | 0.832 | 168 | 34 |
+| abdomen_pelvis | 0.750 | 69 | 23 |
+| extremities | 0.691 ← 最低 | 47 | 21 |
+
+**考察:** F1=0.862, P=0.955は良好。Recall=0.785（YOLO val時の36.9%から大幅向上）。
+四肢(0.691)が最低 → EXP-002でデュアルビュー追加によるカバレッジ向上を期待。
+病変数MAE=0.84（わずかに過少検出傾向）。
+EXP-002（前後面デュアルビュー + yolo11m）で全部位Recall向上を狙う。
 
 ### 次のステップ
 - [x] データセット生成（1020 train / 180 val, 1.2s/8workers）
@@ -66,7 +76,7 @@ EXP-002（デュアルビュー + yolo11m）で改善予定。
 - [x] EXP-002準備: generate_dataset_v2.py + train_detector_v2.py + dicom_reader.py
 - [x] eval_final.py（訓練後一括評価スクリプト）
 - [x] 訓練完了後: 最終精度確認・EXPERIMENTS.md更新（2026-04-13）
-- [ ] `python3.12 models/eval_final.py` で詳細評価（部位別Recall・病変数MAE）
+- [x] `python3.12 models/eval_final.py` で詳細評価（部位別Recall・病変数MAE）→ 完了 2026-04-13
 - [ ] EXP-002: デュアルビュー対応 + yolo11m でRecall向上
 
 ---
