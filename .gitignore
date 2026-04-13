@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 data/yolo_dataset/
+data/yolo_dataset_v2/
 data/validation_output/
 runs/
 *.pt
