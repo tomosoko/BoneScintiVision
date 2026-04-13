@@ -41,17 +41,21 @@ device: mps
 | ~30 | 0.813 | 0.978 | 0.738 |
 | ~69 | 0.835 | 0.970 | 0.772 |
 
-**状態:** 訓練中（epoch ~69/150, mAP50上昇中）
+**状態:** ✅ 訓練完了（epoch 150/150）
 
-### 最終結果
-*(訓練完了後に記録)*
+### 最終結果（2026-04-13 確認）
 
 | 指標 | 値 |
 |---|---|
-| mAP50 | — |
-| Precision | — |
-| Recall | — |
-| 訓練時間 | — |
+| mAP50 | **0.7839** (78.4%) |
+| mAP50-95 | **0.6948** (69.5%) |
+| Precision | 0.5746 (57.5%) |
+| Recall | **0.3691** (36.9%) ← 低め |
+| 訓練 epoch | 150 / 150 |
+
+**考察:** mAP50=78%は良好だがRecall=37%が課題。
+見逃し（FN）が多い = 病変見落としリスク。
+EXP-002（デュアルビュー + yolo11m）で改善予定。
 
 ### 次のステップ
 - [x] データセット生成（1020 train / 180 val, 1.2s/8workers）
@@ -61,7 +65,9 @@ device: mps
 - [x] validate_detector.py 部位別Recall + 病変数MAE追加
 - [x] EXP-002準備: generate_dataset_v2.py + train_detector_v2.py + dicom_reader.py
 - [x] eval_final.py（訓練後一括評価スクリプト）
-- [ ] 訓練完了後: `python3.12 models/eval_final.py` → 最終精度確認・EXPERIMENTS.md更新
+- [x] 訓練完了後: 最終精度確認・EXPERIMENTS.md更新（2026-04-13）
+- [ ] `python3.12 models/eval_final.py` で詳細評価（部位別Recall・病変数MAE）
+- [ ] EXP-002: デュアルビュー対応 + yolo11m でRecall向上
 
 ---
 
