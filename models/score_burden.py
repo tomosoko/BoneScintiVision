@@ -188,7 +188,7 @@ def run_inference_and_score(
                 "conf": float(c),
             })
 
-    score = compute_bone_burden_score(detections, image_size=img.shape[0])
+    score = compute_bone_burden_score(detections, image_w=img.shape[1], image_h=img.shape[0])
 
     # 可視化
     if save_vis:
