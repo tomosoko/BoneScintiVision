@@ -1,7 +1,7 @@
 """
 BoneScintiVision — EXP-006 検証スクリプト
 
-EXP-006 (yolo11m, 512px, yolo_dataset_v5, 腹部65%強化+5000枚) 用。
+EXP-006 (yolo11m, 512px, yolo_dataset_v6, 腹部60%強化+5100枚) 用。
 validate_detector_v2.py と同じロジックを使用し、モデルパスを変更。
 
 使い方:
@@ -17,7 +17,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-V6_DEFAULT_MODEL = BASE_DIR / "runs" / "detect" / "bone_scinti_detector_v6" / "weights" / "best.pt"
+V6_DEFAULT_MODEL = BASE_DIR / "runs" / "detect" / "bone_scinti_detector_v62" / "weights" / "best.pt"
 
 
 if __name__ == "__main__":
