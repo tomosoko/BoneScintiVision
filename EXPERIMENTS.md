@@ -407,31 +407,38 @@ Precision ≥ 0.900 維持しつつ 腹部Recall ≥ 0.800 達成を目指す。
 
 ---
 
-## EXP-006 | 腹部病変オーバーサンプリング強化（計画中）
+## EXP-006 | 腹部病変オーバーサンプリング強化 + データ量増加（訓練中）
 
 **日付:** 2026-04-15
 **環境:** Mac Mini M4 Pro 64GB / Python 3.12 / MPS GPU
 
 ### 目的
 EXP-005の腹部Recall=0.757を0.800まで引き上げる。
-EXP-005で腹部45%→+3.3ppの効果を確認 → さらに強化して目標達成。
+二重改善策: (1) データ量増加 3540→6000枚、(2) 腹部強制追加確率 45%→60%。
 
-### データセット v5 の変更点
-| 項目 | v4 (EXP-005) | v5 (EXP-006) |
+### データセット v6 の変更点
+| 項目 | v4 (EXP-005) | v6 (EXP-006) |
 |---|---|---|
-| 生理的集積なし比率 | 50% | **60%** |
-| 腹部病変強制追加確率 | 45% | **65%** |
-| 生成数 | 3540 枚 | **5000 枚** |
-| シード | 2026 | 42 |
+| 生理的集積なし比率 | 50% | **50%** (同) |
+| 腹部病変強制追加確率 | 45% | **60%** |
+| 生成数 | 3540 枚 | **6000 枚** (train=5100/val=900) |
+| シード | 2026 | **2025** |
 
 ### 設定
-- データ: `yolo_dataset_v5` (4250 train / 750 val 予定)
-- モデル: yolo11m.pt
+- データ: `yolo_dataset_v6` (5100 train / 900 val)
+- モデル: yolo11m.pt (EXP-005と同)
 - imgsz: 512, batch: 16, epochs: 150, patience: 30
-- 実装: `synth/generate_dataset_v5.py` + `models/train_detector_v6.py`
+- run name: `bone_scinti_detector_v62` (auto-increment)
+- 実装: `synth/generate_dataset_v6.py` + `models/train_detector_v6.py`
+- 検証: `models/validate_detector_v6.py --n 200`
 
 ### 結果
 *(訓練完了後記入)*
+
+### 目標
+- 腹部 Recall ≥ 0.800 (EXP-005=0.757, +4.3pp目標)
+- 全体 Precision ≥ 0.900 (EXP-005=0.980 維持)
+- 全体 Recall ≥ 0.800 (EXP-005=0.818 維持)
 
 ---
 

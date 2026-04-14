@@ -30,10 +30,14 @@
 | `synth/generate_dataset_v4.py` | v4データセット生成（生理的集積50%なし+腹部45%）|
 | `models/train_detector_v5.py` | EXP-005 訓練 (yolo11m, v4データ, imgsz=512) |
 | `models/validate_detector_v5.py` | EXP-005 検証（EXP-003b比較、目標値チェック付き）|
+| `synth/generate_dataset_v5.py` | v5データセット生成（5000枚, 腹部65%, 生理的集積なし60%）|
+| `synth/generate_dataset_v6.py` | v6データセット生成（6000枚, 腹部60%, 生理的集積なし50%）|
+| `models/train_detector_v6.py` | EXP-006 訓練 (yolo11m, v6データ, 6000枚) |
+| `models/validate_detector_v6.py` | EXP-006 検証（腹部Recall≥0.800目標）|
 | `models/score_burden.py` | 骨転移スコアリング |
 | `EXPERIMENTS.md` | 実験ログ |
 
-## 現在の状態（2026-04-14）
+## 現在の状態（2026-04-15）
 - EXP-001: mAP50=0.784, F1=0.862 ✅
 - EXP-002: mAP50=0.844, 腹部Recall=0.711 ✅
 - **EXP-003b: mAP50=0.872, 腹部Recall=0.724 ✅** (ep124/150)
@@ -41,9 +45,11 @@
   - Precision=0.633 と大幅低下
 - **EXP-005: 完了** (ep142 best) P=0.980 ✅ R=0.818 ✅ 腹部Recall=0.757 ❌(目標0.800未達)
   - `runs/detect/bone_scinti_detector_v5/weights/best.pt`
-  - 次: EXP-006案 (腹部オーバーサンプリング65%, 生理的集積なし60%)
+- **EXP-006: 訓練中** (yolo11m, yolo_dataset_v6: 6000枚, 腹部60%OS, 生理的集積なし50%)
+  - run: `runs/detect/bone_scinti_detector_v62/` (PID 43267)
+  - 完了後: `python3.12 models/validate_detector_v6.py --n 200` で検証
 
-## テスト (112件)
+## テスト (126件)
 ```bash
 cd /Users/kohei/develop/research/BoneScintiVision
 /Users/kohei/develop/research/ElbowVision/elbow-api/venv/bin/python -m pytest tests/ -q
@@ -55,10 +61,11 @@ cd /Users/kohei/develop/research/BoneScintiVision
 python3.12 synth/generate_dataset.py          # データセット生成 (v1/v2)
 python3.12 synth/generate_dataset_v3.py       # v3データセット生成
 python3.12 synth/generate_dataset_v4.py       # v4データセット生成 (EXP-005用)
-python3.12 models/train_detector_v3b.py       # EXP-003b訓練
+python3.12 synth/generate_dataset_v6.py       # v6データセット生成 (EXP-006用: 6000枚, 腹部60%)
 python3.12 models/train_detector_v5.py        # EXP-005訓練 (bone_scinti_detector_v5)
-python3.12 models/validate_detector_v3b.py    # EXP-003b検証
+python3.12 models/train_detector_v6.py        # EXP-006訓練 (bone_scinti_detector_v6)
 python3.12 models/validate_detector_v5.py     # EXP-005検証
+python3.12 models/validate_detector_v6.py     # EXP-006検証 (腹部Recall≥0.800目標)
 python3.12 models/validate_ensemble_v4.py     # EXP-004アンサンブル評価
 ```
 
