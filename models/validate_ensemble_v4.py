@@ -51,16 +51,26 @@ def nms(boxes: List[List[float]], scores: List[float], iou_thresh: float) -> Lis
     order = np.argsort(scores)[::-1]
     keep = []
     suppressed = set()
-    for i in order:
+    for idx, i in enumerate(order):
         if i in suppressed:
             continue
         keep.append(int(i))
-        for j in order:
-            if j == i or j in suppressed:
+        for j in order[idx + 1:]:
+            if j in suppressed:
                 continue
             if compute_iou(boxes[i], boxes[j]) > iou_thresh:
                 suppressed.add(j)
     return keep
+
+
+def _region_label(yc: float) -> str:
+    if yc < 0.25:
+        return "head_neck"
+    elif yc < 0.55:
+        return "thorax"
+    elif yc < 0.75:
+        return "abdomen_pelvis"
+    return "extremities"
 
 
 def _resize_and_pad(
@@ -75,16 +85,6 @@ def _resize_and_pad(
     py = (target_h - nh) // 2
     canvas[py : py + nh, px : px + nw] = img_r
     return canvas, scale, px, py
-
-
-def _region_label(yc: float) -> str:
-    if yc < 0.25:
-        return "head_neck"
-    elif yc < 0.55:
-        return "thorax"
-    elif yc < 0.75:
-        return "abdomen_pelvis"
-    return "extremities"
 
 
 def run_ensemble_validation(
