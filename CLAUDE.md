@@ -39,8 +39,9 @@
 - **EXP-003b: mAP50=0.872, 腹部Recall=0.724 ✅** (ep124/150)
 - **EXP-004: アンサンブル (EXP-002+EXP-003b) 完了** → 腹部Recall=0.757 (目標未達), 全体Recall=0.845 ✅
   - Precision=0.633 と大幅低下
-- **EXP-005: 訓練中** v4データ(生理的集積50%なし,腹部45%) → `bone_scinti_detector_v5` 150ep
-  - 目標: Precision ≥ 0.900 維持 + 腹部Recall ≥ 0.800 達成
+- **EXP-005: 完了** (ep142 best) P=0.980 ✅ R=0.818 ✅ 腹部Recall=0.757 ❌(目標0.800未達)
+  - `runs/detect/bone_scinti_detector_v5/weights/best.pt`
+  - 次: EXP-006案 (腹部オーバーサンプリング65%, 生理的集積なし60%)
 
 ## テスト (112件)
 ```bash
