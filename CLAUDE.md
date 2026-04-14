@@ -19,15 +19,29 @@
 |---|---|
 | `synth/bone_phantom.py` | 人体骨格の解剖学的ファントム生成 |
 | `synth/scintigraphy_sim.py` | ガンマカメラ収集シミュレーション |
-| `synth/generate_dataset.py` | YOLOデータセット一括生成 |
-| `models/train_detector.py` | YOLO11s hot spot検出訓練 |
+| `synth/generate_dataset.py` | YOLOデータセット一括生成 (v1/v2) |
+| `synth/generate_dataset_v3.py` | v3データセット生成（腹部強化版）|
+| `models/train_detector.py` | YOLO11s hot spot検出訓練 (EXP-001) |
+| `models/train_detector_v2.py` | dual-view訓練 (EXP-002) |
+| `models/train_detector_v3b.py` | v3データ訓練 imgsz=512 (EXP-003b) |
+| `models/validate_detector_v2.py` | EXP-002 検証（部位別Recall）|
+| `models/validate_detector_v3b.py` | EXP-003b 検証（EXP-002比較）|
+| `models/score_burden.py` | 骨転移スコアリング |
 | `EXPERIMENTS.md` | 実験ログ |
+
+## テスト (74件)
+```bash
+cd /Users/kohei/develop/research/BoneScintiVision
+/Users/kohei/develop/research/ElbowVision/elbow-api/venv/bin/python -m pytest tests/ -q
+```
 
 ## 起動
 ```bash
 cd /Users/kohei/develop/research/BoneScintiVision
-python3.12 synth/generate_dataset.py   # データセット生成
-python3.12 models/train_detector.py    # 訓練
+python3.12 synth/generate_dataset.py          # データセット生成 (v1/v2)
+python3.12 synth/generate_dataset_v3.py       # v3データセット生成
+python3.12 models/train_detector_v3b.py       # EXP-003b訓練
+python3.12 models/validate_detector_v3b.py    # EXP-003b検証
 ```
 
 ## venv
