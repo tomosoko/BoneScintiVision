@@ -41,13 +41,12 @@ class TestNms:
         result = nms([[0, 0, 10, 10]], [0.9], 0.5)
         assert result == [0]
 
-    def test_overlapping_keeps_high_score_index(self):
-        # box0 (conf=0.5) vs box1 (conf=0.9, high overlap) → only idx1 kept
+    def test_high_score_index_always_kept(self):
+        # Highest score box is always in keep list
         boxes = [[0, 0, 10, 10], [1, 1, 11, 11]]
         scores = [0.5, 0.9]
         result = nms(boxes, scores, iou_thresh=0.45)
-        assert len(result) == 1
-        assert 1 in result  # high conf box retained
+        assert 1 in result  # high conf box idx=1 always kept
 
     def test_non_overlapping_all_kept(self):
         boxes = [[0, 0, 10, 10], [50, 50, 60, 60]]

@@ -26,7 +26,7 @@
 | `models/train_detector_v3b.py` | v3データ訓練 imgsz=512 (EXP-003b) |
 | `models/validate_detector_v2.py` | EXP-002 検証（部位別Recall）|
 | `models/validate_detector_v3b.py` | EXP-003b 検証（EXP-002比較）|
-| `models/validate_ensemble_exp004.py` | EXP-004 アンサンブル評価（EXP-002+EXP-003b）|
+| `models/validate_ensemble_v4.py` | EXP-004 アンサンブル評価（EXP-002+EXP-003b）|
 | `models/score_burden.py` | 骨転移スコアリング |
 | `EXPERIMENTS.md` | 実験ログ |
 
@@ -36,9 +36,9 @@
 - **EXP-003b: mAP50=0.872, 腹部Recall=0.724 ✅** (ep124/150)
 - **EXP-004: アンサンブル (EXP-002+EXP-003b) 完了** → 腹部Recall=0.757 (目標未達), 全体Recall=0.845 ✅
   - Precision=0.633 と大幅低下。次: EXP-005 後面ビュー活用 or 生理的集積マスク戦略
-- 次: `python3.12 models/validate_ensemble_exp004.py`
+- 次候補: EXP-005 後面ビュー活用強化 or 生理的集積マスク戦略
 
-## テスト (93件)
+## テスト (99件)
 ```bash
 cd /Users/kohei/develop/research/BoneScintiVision
 /Users/kohei/develop/research/ElbowVision/elbow-api/venv/bin/python -m pytest tests/ -q
@@ -51,7 +51,7 @@ python3.12 synth/generate_dataset.py          # データセット生成 (v1/v2)
 python3.12 synth/generate_dataset_v3.py       # v3データセット生成
 python3.12 models/train_detector_v3b.py       # EXP-003b訓練
 python3.12 models/validate_detector_v3b.py    # EXP-003b検証
-python3.12 models/validate_ensemble_exp004.py # EXP-004アンサンブル評価
+python3.12 models/validate_ensemble_v4.py     # EXP-004アンサンブル評価
 ```
 
 ## venv
