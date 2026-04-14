@@ -193,7 +193,7 @@ class BonePhantom:
 
         # ソフトブラー（ガンマカメラの低解像度を模擬）
         if blur > 0:
-            mask = canvas.copy()
+            canvas[:] = cv2.GaussianBlur(canvas, (0, 0), blur)
 
     def get_anterior_view(self, add_variation: bool = True) -> Tuple[np.ndarray, Dict]:
         """

@@ -49,7 +49,7 @@
   - run: `runs/detect/bone_scinti_detector_v62/` (PID 43267)
   - 完了後: `python3.12 models/validate_detector_v6.py --n 200` で検証
 
-## テスト (126件)
+## テスト (158件)
 ```bash
 cd /Users/kohei/develop/research/BoneScintiVision
 /Users/kohei/develop/research/ElbowVision/elbow-api/venv/bin/python -m pytest tests/ -q

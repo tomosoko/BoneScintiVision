@@ -120,3 +120,48 @@ class TestSampleLesionSites:
         l1 = p1.sample_lesion_sites(5)
         l2 = p2.sample_lesion_sites(5)
         assert l1 == l2
+
+
+class TestDrawRegionBlur:
+    """_draw_region の blur 適用リグレッションテスト。
+
+    修正前バグ: `mask = canvas.copy()` でコピーを作るだけでブラーを適用せず、
+    ガンマカメラの低解像度シミュレーションが無効だった。
+    修正後: `canvas[:] = cv2.GaussianBlur(canvas, (0, 0), blur)` でin-placeブラー。
+    """
+
+    def test_blur_applied_produces_intermediate_values(self):
+        """blur>0 で描画後のキャンバスに中間値が生じる（エッジがソフト）。"""
+        import numpy as np
+        phantom = BonePhantom(seed=0)
+        region = list(phantom.regions.values())[0]
+
+        # blur=0: シャープな描画
+        canvas_sharp = np.zeros((512, 256), dtype=np.float32)
+        phantom._draw_region(canvas_sharp, region, intensity=0.5, blur=0)
+
+        # blur=5: ソフトな描画
+        canvas_blur = np.zeros((512, 256), dtype=np.float32)
+        phantom._draw_region(canvas_blur, region, intensity=0.5, blur=5)
+
+        # シャープ版の値は 0.0 か 0.5 の2値に近い
+        # ブラー版はその中間値を持つピクセルが存在する
+        intermediate_blur = ((canvas_blur > 0.01) & (canvas_blur < 0.45)).sum()
+        intermediate_sharp = ((canvas_sharp > 0.01) & (canvas_sharp < 0.45)).sum()
+        assert intermediate_blur > intermediate_sharp, \
+            "blur適用後はシャープ版より中間値ピクセルが多いはず (blur未適用バグの再発)"
+
+    def test_blur_zero_gives_uniform_values(self):
+        """blur=0 では描画値が単一の整数値 (intensity*255) に集中する（エッジなし）。"""
+        import numpy as np
+        phantom = BonePhantom(seed=0)
+        region = list(phantom.regions.values())[0]
+        canvas = np.zeros((512, 256), dtype=np.float32)
+        phantom._draw_region(canvas, region, intensity=0.5, blur=0)
+        nonzero = canvas[canvas > 0]
+        assert len(nonzero) > 0
+        # col = int(intensity * 255) = 127。ブラーなしなら値は127のみ
+        expected_col = int(0.5 * 255)  # 127
+        unique_vals = np.unique(nonzero)
+        assert len(unique_vals) == 1, f"blur=0で複数の値が存在する: {unique_vals}"
+        assert abs(unique_vals[0] - expected_col) < 2
