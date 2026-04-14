@@ -40,8 +40,8 @@ if __name__ == "__main__":
     print(f"目標: 腹部Recall ≥ 0.800, Precision ≥ 0.900")
     print(f"EXP-005実績: P=0.980, R=0.818, 腹部=0.757")
     r = results.get("region_recall", {})
-    overall_p = results.get("overall_precision", 0)
-    overall_r = results.get("overall_recall", 0)
+    overall_p = results.get("precision", 0)
+    overall_r = results.get("recall", 0)
 
     if "abdomen_pelvis" in r:
         abd = r["abdomen_pelvis"]
