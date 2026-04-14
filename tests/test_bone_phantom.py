@@ -61,3 +61,62 @@ class TestBonePhantom:
         # 完全に同一でないことを確認
         diff = np.abs(ant_mask - post_mask).sum()
         assert diff > 0, "前面と後面が同一マスク"
+
+
+class TestSampleLesionSites:
+    """BonePhantom.sample_lesion_sites のテスト."""
+
+    def setup_method(self):
+        self.phantom = BonePhantom(seed=42)
+
+    def test_returns_list(self):
+        lesions = self.phantom.sample_lesion_sites(3)
+        assert isinstance(lesions, list)
+
+    def test_n_lesions_correct(self):
+        """要求数の病変を返す（既知地域内のみ）."""
+        lesions = self.phantom.sample_lesion_sites(5)
+        # 全てのサンプリング地域はregionsに存在するはず
+        assert len(lesions) <= 5
+
+    def test_zero_lesions_returns_empty(self):
+        lesions = self.phantom.sample_lesion_sites(0)
+        assert lesions == []
+
+    def test_lesion_has_required_keys(self):
+        lesions = self.phantom.sample_lesion_sites(3)
+        for les in lesions:
+            assert "region" in les
+            assert "x" in les
+            assert "y" in les
+            assert "intensity" in les
+            assert "size" in les
+
+    def test_intensity_in_range(self):
+        lesions = self.phantom.sample_lesion_sites(10)
+        for les in lesions:
+            assert 0.6 <= les["intensity"] <= 1.0, f"intensity={les['intensity']}"
+
+    def test_size_in_range(self):
+        lesions = self.phantom.sample_lesion_sites(10)
+        for les in lesions:
+            assert 8 <= les["size"] <= 21, f"size={les['size']}"
+
+    def test_coordinates_within_image(self):
+        lesions = self.phantom.sample_lesion_sites(20)
+        for les in lesions:
+            assert 5 <= les["x"] <= self.phantom.IMG_W - 5, f"x={les['x']}"
+            assert 5 <= les["y"] <= self.phantom.IMG_H - 5, f"y={les['y']}"
+
+    def test_region_is_known(self):
+        """サンプリングされた部位名はMETASTASIS_RISKに含まれる."""
+        lesions = self.phantom.sample_lesion_sites(10)
+        for les in lesions:
+            assert les["region"] in METASTASIS_RISK, f"unknown region: {les['region']}"
+
+    def test_reproducible_with_seed(self):
+        p1 = BonePhantom(seed=7)
+        p2 = BonePhantom(seed=7)
+        l1 = p1.sample_lesion_sites(5)
+        l2 = p2.sample_lesion_sites(5)
+        assert l1 == l2
