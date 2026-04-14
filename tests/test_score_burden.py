@@ -147,3 +147,19 @@ class TestComputeBoneBurdenScore:
         dets = [self._make_detection() for _ in range(7)]  # 7 lesions → Stage 3
         result = compute_bone_burden_score(dets)
         assert result["risk_stage"]["stage"] == "Stage 3"
+
+    def test_non_square_image_area_uses_correct_dims(self):
+        # デュアルビュー画像 512×256: widthは512、heightは256で正規化すべき
+        # 同じbox (w=20, h=20) を正方形(256×256)と非正方形(512×256)で比較
+        det = self._make_detection(w=20, h=20)
+        result_square = compute_bone_burden_score([det], image_w=256, image_h=256)
+        result_wide   = compute_bone_burden_score([det], image_w=512, image_h=256)
+        # 幅が2倍なので面積は1/2になるべき
+        assert abs(result_wide["total_bone_burden"] - result_square["total_bone_burden"] / 2) < 0.01
+
+    def test_image_w_h_override_image_size(self):
+        # image_w/image_h が指定された場合、image_sizeより優先される
+        det = self._make_detection(w=10, h=10)
+        result_via_size = compute_bone_burden_score([det], image_size=100)
+        result_via_wh   = compute_bone_burden_score([det], image_w=100, image_h=100)
+        assert abs(result_via_size["total_bone_burden"] - result_via_wh["total_bone_burden"]) < 1e-6

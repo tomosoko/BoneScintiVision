@@ -78,13 +78,17 @@ def classify_risk_stage(n_lesions: int) -> Dict:
 def compute_bone_burden_score(
     detections: List[Dict],
     image_size: int = 256,
+    image_w: Optional[int] = None,
+    image_h: Optional[int] = None,
 ) -> Dict:
     """
     骨転移負荷スコアを計算。
 
     Args:
         detections: [{x, y, w, h, conf, class}]  x,y は中心座標（ピクセル）
-        image_size: 画像サイズ（正方形想定）
+        image_size: 画像サイズ（正方形の場合のみ有効、後方互換用）
+        image_w:    画像幅（非正方形画像では必須）
+        image_h:    画像高さ（非正方形画像では必須）
 
     Returns:
         Dict with:
@@ -95,6 +99,9 @@ def compute_bone_burden_score(
           region_scores:     部位別スコア
           risk_stage:        リスク分類
     """
+    img_w = image_w if image_w is not None else image_size
+    img_h = image_h if image_h is not None else image_size
+
     if not detections:
         return {
             "n_lesions": 0,
@@ -111,8 +118,8 @@ def compute_bone_burden_score(
     weighted_area = 0.0
 
     for d in detections:
-        yc_norm = d["y"] / image_size
-        area_norm = (d["w"] / image_size) * (d["h"] / image_size) * 100.0  # %
+        yc_norm = d["y"] / img_h
+        area_norm = (d["w"] / img_w) * (d["h"] / img_h) * 100.0  # %
         region = classify_clinical_region(yc_norm)
         weight = REGION_WEIGHTS[region]
 
@@ -250,7 +257,9 @@ def batch_score(
                     "conf": float(c),
                 })
 
-        score = compute_bone_burden_score(detections, image_size=img.shape[0])
+        score = compute_bone_burden_score(
+            detections, image_w=img.shape[1], image_h=img.shape[0]
+        )
         score["image"] = str(img_path)
         results_all.append(score)
 

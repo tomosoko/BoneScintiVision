@@ -80,8 +80,10 @@ def run_validation_v2(model_path: str, n_test: int = 100) -> Dict:
 
         base_ant, _ = phantom.get_anterior_view(add_variation=True)
         base_post, _ = phantom.get_posterior_view(add_variation=True)
-        img_ant = sim.acquire(base_ant, lesions, view="anterior", add_physiological=True)
-        img_post = sim.acquire(base_post, lesions_post, view="posterior", add_physiological=True)
+        # 訓練データと同じ分布: 50%確率で生理的集積なし
+        add_phys = rng.random() > 0.5
+        img_ant = sim.acquire(base_ant, lesions, view="anterior", add_physiological=add_phys)
+        img_post = sim.acquire(base_post, lesions_post, view="posterior", add_physiological=add_phys)
 
         img_ant_pad, scale_ant, px_ant, py_ant = _resize_and_pad(img_ant, ANT_W, IMG_H)
         img_post_pad, scale_post, px_post, py_post = _resize_and_pad(img_post, POST_W, IMG_H)
