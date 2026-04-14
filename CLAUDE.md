@@ -29,7 +29,7 @@
 | `models/validate_ensemble_v4.py` | EXP-004 アンサンブル評価（EXP-002+EXP-003b）|
 | `synth/generate_dataset_v4.py` | v4データセット生成（生理的集積50%なし+腹部45%）|
 | `models/train_detector_v5.py` | EXP-005 訓練 (yolo11m, v4データ, imgsz=512) |
-| `models/validate_detector_v4.py` | EXP-005 検証（EXP-003b比較）|
+| `models/validate_detector_v5.py` | EXP-005 検証（EXP-003b比較、目標値チェック付き）|
 | `models/score_burden.py` | 骨転移スコアリング |
 | `EXPERIMENTS.md` | 実験ログ |
 
