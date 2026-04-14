@@ -102,3 +102,56 @@ class TestSampleLesionsV3:
         for les in lesions:
             for key in ["region", "x", "y", "intensity", "size"]:
                 assert key in les, f"キーが欠落: {key}"
+
+
+class TestResizeAndPad:
+    """_resize_and_pad のユニットテスト."""
+
+    def test_output_canvas_size(self):
+        """出力はtarget_h x target_wのキャンバス."""
+        from synth.generate_dataset_v3 import _resize_and_pad
+        img = np.ones((128, 64), dtype=np.uint8) * 200
+        canvas, scale, px, py = _resize_and_pad(img, target_w=256, target_h=256)
+        assert canvas.shape == (256, 256)
+
+    def test_returns_uint8(self):
+        """出力はuint8."""
+        from synth.generate_dataset_v3 import _resize_and_pad
+        img = np.ones((64, 64), dtype=np.uint8) * 128
+        canvas, _, _, _ = _resize_and_pad(img, target_w=256, target_h=256)
+        assert canvas.dtype == np.uint8
+
+    def test_scale_fits_inside_target(self):
+        """スケール後の画像がtarget内に収まる."""
+        from synth.generate_dataset_v3 import _resize_and_pad
+        img = np.ones((200, 100), dtype=np.uint8) * 100
+        canvas, scale, px, py = _resize_and_pad(img, target_w=256, target_h=256)
+        nw = int(100 * scale)
+        nh = int(200 * scale)
+        assert nw <= 256
+        assert nh <= 256
+
+    def test_square_image_fills_canvas(self):
+        """正方形入力は同サイズtargetにそのままフィット (scale=1)."""
+        from synth.generate_dataset_v3 import _resize_and_pad
+        img = np.full((256, 256), 128, dtype=np.uint8)
+        canvas, scale, px, py = _resize_and_pad(img, target_w=256, target_h=256)
+        assert abs(scale - 1.0) < 1e-6
+        assert px == 0
+        assert py == 0
+
+    def test_padding_centers_image(self):
+        """パディングは左右対称に入る (幅方向)."""
+        from synth.generate_dataset_v3 import _resize_and_pad
+        # 縦長画像: 幅方向にパディングが入るはず
+        img = np.ones((256, 128), dtype=np.uint8) * 200
+        canvas, scale, px, py = _resize_and_pad(img, target_w=256, target_h=256)
+        nw = int(128 * scale)
+        assert px == (256 - nw) // 2
+
+    def test_nonzero_input_has_nonzero_output(self):
+        """明るい入力が出力に反映される."""
+        from synth.generate_dataset_v3 import _resize_and_pad
+        img = np.full((64, 64), 200, dtype=np.uint8)
+        canvas, _, _, _ = _resize_and_pad(img, target_w=256, target_h=256)
+        assert canvas.max() > 0

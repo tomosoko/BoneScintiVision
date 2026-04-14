@@ -17,9 +17,9 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-# EXP-003 モデルはOsteoVisionのrunsディレクトリに保存される
-V3_RUNS_DIR = Path("/Users/kohei/develop/Dev/vision/OsteoVision/runs/detect")
-V3_DEFAULT_MODEL = V3_RUNS_DIR / "bone_scinti_detector_v3" / "weights" / "best.pt"
+# EXP-003 (imgsz=640) は MPS クラッシュで失敗 → EXP-003b を使うこと
+# 将来 imgsz=640 再試行時のために正しいパスを設定しておく
+V3_DEFAULT_MODEL = BASE_DIR / "runs" / "detect" / "bone_scinti_detector_v3" / "weights" / "best.pt"
 
 
 if __name__ == "__main__":

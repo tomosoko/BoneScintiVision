@@ -9,3 +9,5 @@ runs/
 *.log
 .DS_Store
 data/yolo_dataset_v3/
+venv/
+data/yolo_dataset_v3/
