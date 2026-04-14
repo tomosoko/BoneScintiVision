@@ -49,8 +49,8 @@ if __name__ == "__main__":
     print(f"EXP-005目標:  Precision≥0.900 維持, 腹部Recall≥0.800, 全体Recall≥0.800")
 
     r = results.get("region_recall", {})
-    overall_p = results.get("overall_precision", 0)
-    overall_r = results.get("overall_recall", 0)
+    overall_p = results.get("precision", 0)
+    overall_r = results.get("recall", 0)
 
     p_ok = "✅" if overall_p >= 0.900 else "❌"
     r_ok = "✅" if overall_r >= 0.800 else "❌"
