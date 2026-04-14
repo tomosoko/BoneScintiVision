@@ -122,3 +122,46 @@ class TestResizeAndPad:
         canvas, scale, px, py = _resize_and_pad(img, 100, 100)
         # Center region should be white (255)
         assert canvas[py + 5, px + 5] == 255
+
+
+# --- run_validation_v2 return dict キー名リグレッションテスト ----------------
+
+class TestRunValidationV2ReturnKeys:
+    """run_validation_v2 の返り値キー名リグレッションテスト。
+
+    修正前バグ: validate_detector_v3b/v4 が 'overall_precision'/'overall_recall' を
+    参照していたが、run_validation_v2 は 'precision'/'recall' を返すため常に 0 になっていた。
+    このテストで再発を防ぐ。
+    """
+
+    def test_return_has_precision_key(self):
+        """run_validation_v2 のソースが 'precision' キーを返すこと。"""
+        import inspect
+        from models.validate_detector_v2 import run_validation_v2
+        src = inspect.getsource(run_validation_v2)
+        assert '"precision"' in src
+
+    def test_return_has_recall_key(self):
+        """run_validation_v2 のソースが 'recall' キーを返すこと。"""
+        import inspect
+        from models.validate_detector_v2 import run_validation_v2
+        src = inspect.getsource(run_validation_v2)
+        assert '"recall"' in src
+
+    def test_no_overall_prefixed_keys_in_return(self):
+        """return dict に overall_precision / overall_recall が含まれないこと（旧バグ防止）。"""
+        import inspect
+        from models.validate_detector_v2 import run_validation_v2
+        src = inspect.getsource(run_validation_v2)
+        # コメント行を除外してチェック
+        code_lines = [l for l in src.splitlines() if not l.lstrip().startswith("#")]
+        code = "\n".join(code_lines)
+        assert "overall_precision" not in code
+        assert "overall_recall" not in code
+
+    def test_region_recall_key_present(self):
+        """run_validation_v2 のソースが 'region_recall' キーを返すこと。"""
+        import inspect
+        from models.validate_detector_v2 import run_validation_v2
+        src = inspect.getsource(run_validation_v2)
+        assert '"region_recall"' in src

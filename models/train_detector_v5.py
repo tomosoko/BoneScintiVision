@@ -66,7 +66,7 @@ def main():
 
     best = BASE_DIR / "runs" / "detect" / RUN_NAME / "weights" / "best.pt"
     print(f"\n訓練完了! Best: {best}")
-    print("次: python3.12 models/validate_detector_v3b.py --model runs/detect/bone_scinti_detector_v5/weights/best.pt")
+    print("次: python3.12 models/validate_detector_v5.py --model runs/detect/bone_scinti_detector_v5/weights/best.pt")
 
 
 if __name__ == "__main__":

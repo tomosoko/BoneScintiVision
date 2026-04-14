@@ -45,5 +45,5 @@ if __name__ == "__main__":
         achieved = r["abdomen_pelvis"]
         symbol = "✅" if achieved >= 0.800 else "❌"
         print(f"  EXP-003b実績: {achieved:.3f} {symbol}")
-    print(f"\n全体 Recall: {results.get('overall_recall', 0):.3f}")
-    print(f"全体 Precision: {results.get('overall_precision', 0):.3f}")
+    print(f"\n全体 Recall: {results.get('recall', 0):.3f}")
+    print(f"全体 Precision: {results.get('precision', 0):.3f}")
