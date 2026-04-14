@@ -5,7 +5,7 @@ EXP-003b (yolo11m, 512px, yolo_dataset_v3, dual-view) 用。
 validate_detector_v2.py と同じロジックを使用し、モデルパスを変更。
 
 使い方:
-  cd /Users/kohei/develop/research/BoneScintiVision
+  cd ~/develop/research/BoneScintiVision
   python3.12 models/validate_detector_v3b.py
   python3.12 models/validate_detector_v3b.py --n 200
 """

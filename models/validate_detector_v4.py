@@ -5,7 +5,7 @@ EXP-005 (yolo11m, 512px, yolo_dataset_v4, 生理的集積50%なし) 用。
 validate_detector_v2.py と同じロジックを使用し、モデルパスを変更。
 
 使い方:
-  cd /Users/kohei/develop/research/BoneScintiVision
+  cd ~/develop/research/BoneScintiVision
   python3.12 models/validate_detector_v4.py
   python3.12 models/validate_detector_v4.py --n 200
 """

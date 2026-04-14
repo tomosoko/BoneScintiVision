@@ -4,7 +4,7 @@ BoneScintiVision — YOLO11s hot spot 検出訓練スクリプト
 全身骨シンチグラフィの骨転移hot spotをYOLO11sで検出。
 
 使い方:
-  cd /Users/kohei/develop/research/BoneScintiVision
+  cd ~/develop/research/BoneScintiVision
   # Step 1: データセット生成
   python3.12 synth/generate_dataset.py
   # Step 2: 訓練

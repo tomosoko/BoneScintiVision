@@ -5,7 +5,7 @@ v3データセット (yolo11m, 640px, デュアルビュー) 用。
 validate_detector_v2.py と同じロジックを使用し、モデルパスだけ変更。
 
 使い方:
-  cd /Users/kohei/develop/research/BoneScintiVision
+  cd ~/develop/research/BoneScintiVision
   python3.12 models/validate_detector_v3.py
   python3.12 models/validate_detector_v3.py --n 200
 """

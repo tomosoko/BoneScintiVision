@@ -10,7 +10,7 @@ EXP-002 (yolo11m, v2データ) + EXP-003b (yolo11m, v3データ) のアンサン
   - どちらかのモデルが検出すれば TP → Recall向上
 
 使い方:
-  cd /Users/kohei/develop/research/BoneScintiVision
+  cd ~/develop/research/BoneScintiVision
   python3.12 models/validate_ensemble_v4.py
   python3.12 models/validate_ensemble_v4.py --n 200
   python3.12 models/validate_ensemble_v4.py --n 200 --conf 0.20 --nms_iou 0.4

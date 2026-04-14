@@ -4,7 +4,7 @@ BoneScintiVision — FastAPI スコアリングエンドポイント
 訓練済みモデルで骨シンチグラフィ画像の骨転移負荷スコアを返す。
 
 起動:
-  cd /Users/kohei/develop/research/BoneScintiVision
+  cd ~/develop/research/BoneScintiVision
   uvicorn api.app:app --reload --port 8765
 
 エンドポイント:

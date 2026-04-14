@@ -7,7 +7,7 @@ BoneScintiVision — YOLOデータセット一括生成
   class x_center y_center width height [可視フラグなし = detection only]
 
 使い方:
-  cd /Users/kohei/develop/research/BoneScintiVision
+  cd ~/develop/research/BoneScintiVision
   python3.12 synth/generate_dataset.py
   python3.12 synth/generate_dataset.py --n 2000 --val-ratio 0.2
 """

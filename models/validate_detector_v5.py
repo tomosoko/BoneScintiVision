@@ -10,7 +10,7 @@ EXP-005 目標:
   - 全体 Recall ≥ 0.800 維持
 
 使い方:
-  cd /Users/kohei/develop/research/BoneScintiVision
+  cd ~/develop/research/BoneScintiVision
   python3.12 models/validate_detector_v5.py
   python3.12 models/validate_detector_v5.py --n 200
   python3.12 models/validate_detector_v5.py --model runs/detect/bone_scinti_detector_v5/weights/best.pt

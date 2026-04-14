@@ -5,7 +5,7 @@ EXP-002 + EXP-003b の2モデルアンサンブル（NMS統合）。
 腹部骨盤Recall 0.724 → 0.800+ を目標とする。
 
 使い方:
-  cd /Users/kohei/develop/research/BoneScintiVision
+  cd ~/develop/research/BoneScintiVision
   python3.12 models/validate_ensemble_exp004.py
   python3.12 models/validate_ensemble_exp004.py --n 200
   python3.12 models/validate_ensemble_exp004.py --conf 0.20 --iou_nms 0.45
