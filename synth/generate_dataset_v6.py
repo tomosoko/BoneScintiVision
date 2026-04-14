@@ -55,12 +55,12 @@ _ABDOMEN_REGIONS = {"lumbar", "pelvis", "sacrum", "femur_l", "femur_r"}
 
 def _sample_lesions_v6(phantom: BonePhantom, n_lesions: int, rng: np.random.Generator) -> List[Dict]:
     """
-    v4用病変サンプリング: 腹部病変オーバーサンプリング強化（45%）+ 小病変比率増加。
-    v3比: 腹部強制追加 30% → 45%
+    v6用病変サンプリング: 腹部病変オーバーサンプリング強化（60%）+ 小病変比率増加。
+    v4比: 腹部強制追加 45% → 60%
     """
     lesions = phantom.sample_lesion_sites(n_lesions)
 
-    # 45%の確率で腹部/骨盤病変を1〜2個強制追加（v3=30%）
+    # 60%の確率で腹部/骨盤病変を1〜2個強制追加（v4=45%）
     if rng.random() < ABDOMEN_OVERSAMPLE_PROB and n_lesions > 0:
         abdomen_regions = [r for r in _ABDOMEN_REGIONS if r in phantom.regions]
         if abdomen_regions:
@@ -101,7 +101,7 @@ def _resize_and_pad(img, target_w=ANT_W, target_h=IMG_H):
 
 
 def generate_one_v6(args_tuple) -> Tuple[str, str, int]:
-    """前後面デュアルビュー1枚 + YOLOラベル生成 (v3)."""
+    """前後面デュアルビュー1枚 + YOLOラベル生成 (v6)."""
     idx, split, out_img_dir, out_lbl_dir, seed = args_tuple
     out_img_dir = Path(out_img_dir)
     out_lbl_dir = Path(out_lbl_dir)
@@ -127,7 +127,7 @@ def generate_one_v6(args_tuple) -> Tuple[str, str, int]:
         lp["x"] = phantom.IMG_W - les["x"]
         lesions_post.append(lp)
 
-    # 生理的集積: 50%確率でなし（v3=30%→v4=50%、FP抑制のため）
+    # 生理的集積: 50%確率でなし（v4=50%と同、FP抑制のため）
     add_phys = rng.random() > NO_PHYSIO_PROB
     img_ant = sim.acquire(base_ant, lesions, view="anterior", add_physiological=add_phys)
     img_post = sim.acquire(base_post, lesions_post, view="posterior", add_physiological=add_phys)
@@ -181,7 +181,7 @@ def generate_dataset_v6(
         (out_dir / "labels" / split).mkdir(parents=True, exist_ok=True)
 
     t0 = time.time()
-    rng_main = np.random.default_rng(2025)  # v4用シード（v3=43）
+    rng_main = np.random.default_rng(2025)  # v6用シード（v4=2026, v5=42）
     seeds = rng_main.integers(0, 1_000_000, size=n_total).tolist()
 
     print("=" * 60)
@@ -234,8 +234,8 @@ nc: 1
 names:
   0: hot_spot
 
-# v4変更点: 生理的集積なし比率 30%→50%（FP抑制目的）
-# EXP-005: EXP-004アンサンブルのPrecision=0.633改善が目標
+# v6変更点: 生成数3540→6000, 腹部強制追加45%→60%
+# EXP-006: 腹部Recall 0.757→0.800達成が目標
 # 画像: {FULL_W}×{IMG_H}px（前面256px + 後面256px 横並び）
 # 生成数: train={stats['train']['n_images']}, val={stats['val']['n_images']}
 """)
@@ -247,7 +247,7 @@ names:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="BoneScintiVision v4 dataset (生理的集積抑制強化)")
+    parser = argparse.ArgumentParser(description="BoneScintiVision v6 dataset (大規模+腹部オーバーサンプリング)")
     parser.add_argument("--n", type=int, default=DEFAULT_N_TOTAL)
     parser.add_argument("--val-ratio", type=float, default=DEFAULT_VAL_RATIO)
     parser.add_argument("--out", type=str, default=str(OUT_DIR))
