@@ -55,9 +55,9 @@ python3.12 synth/generate_dataset.py          # データセット生成 (v1/v2)
 python3.12 synth/generate_dataset_v3.py       # v3データセット生成
 python3.12 synth/generate_dataset_v4.py       # v4データセット生成 (EXP-005用)
 python3.12 models/train_detector_v3b.py       # EXP-003b訓練
-python3.12 models/train_detector_v4.py        # EXP-005訓練
+python3.12 models/train_detector_v5.py        # EXP-005訓練 (bone_scinti_detector_v5)
 python3.12 models/validate_detector_v3b.py    # EXP-003b検証
-python3.12 models/validate_detector_v4.py     # EXP-005検証
+python3.12 models/validate_detector_v5.py     # EXP-005検証
 python3.12 models/validate_ensemble_v4.py     # EXP-004アンサンブル評価
 ```
 
