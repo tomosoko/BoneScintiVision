@@ -211,7 +211,7 @@ def run_inference_and_score(
         cv2.putText(vis, f"TBB={tbb:.2f}%  N={score['n_lesions']}", (4, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (80, 255, 80), 1)
 
-        out_path = str(Path(image_path).with_suffix("_scored.png"))
+        out_path = str(Path(image_path).parent / (Path(image_path).stem + "_scored.png"))
         cv2.imwrite(out_path, vis)
         score["vis_path"] = out_path
 
@@ -275,7 +275,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BoneScintiVision スコアリング")
     parser.add_argument("--image", type=str, help="単一画像パス")
     parser.add_argument("--dir",   type=str, help="ディレクトリ（バッチ）")
-    parser.add_argument("--model", default=str(RUNS_DIR / "bone_scinti_detector_v1" / "weights" / "best.pt"))
+    parser.add_argument("--model", default=str(RUNS_DIR / "bone_scinti_detector_v5" / "weights" / "best.pt"))
     parser.add_argument("--conf",  type=float, default=0.25)
     parser.add_argument("--out",   type=str, default=None, help="JSON出力パス（バッチ時）")
     args = parser.parse_args()
