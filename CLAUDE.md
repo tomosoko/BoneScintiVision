@@ -34,6 +34,9 @@
 | `synth/generate_dataset_v6.py` | v6データセット生成（6000枚, 腹部60%, 生理的集積なし50%）|
 | `models/train_detector_v6.py` | EXP-006 訓練 (yolo11m, v6データ, 6000枚) |
 | `models/validate_detector_v6.py` | EXP-006 検証（腹部Recall≥0.800目標）|
+| `synth/generate_dataset_v7.py` | v7データセット生成（7000枚, 腹部80%, 生理的集積なし70%）|
+| `models/train_detector_v7.py` | EXP-007 訓練 (yolo11m, v7データ, 7000枚) |
+| `models/validate_detector_v7.py` | EXP-007 検証（腹部Recall≥0.800目標）|
 | `models/score_burden.py` | 骨転移スコアリング |
 | `EXPERIMENTS.md` | 実験ログ |
 
@@ -63,10 +66,13 @@ python3.12 synth/generate_dataset.py          # データセット生成 (v1/v2)
 python3.12 synth/generate_dataset_v3.py       # v3データセット生成
 python3.12 synth/generate_dataset_v4.py       # v4データセット生成 (EXP-005用)
 python3.12 synth/generate_dataset_v6.py       # v6データセット生成 (EXP-006用: 6000枚, 腹部60%)
+python3.12 synth/generate_dataset_v7.py       # v7データセット生成 (EXP-007用: 7000枚, 腹部80%)
 python3.12 models/train_detector_v5.py        # EXP-005訓練 (bone_scinti_detector_v5)
 python3.12 models/train_detector_v6.py        # EXP-006訓練 (bone_scinti_detector_v6)
 python3.12 models/validate_detector_v5.py     # EXP-005検証
 python3.12 models/validate_detector_v6.py     # EXP-006検証 (腹部Recall≥0.800目標)
+python3.12 models/train_detector_v7.py        # EXP-007訓練 (bone_scinti_detector_v7)
+python3.12 models/validate_detector_v7.py     # EXP-007検証 (腹部Recall≥0.800目標)
 python3.12 models/validate_ensemble_v4.py     # EXP-004アンサンブル評価
 ```
 

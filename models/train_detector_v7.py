@@ -2,15 +2,15 @@
 BoneScintiVision — EXP-007 訓練スクリプト (YOLO11m, v7データ, 7000枚+腹部80%+生理70%)
 
 EXP-006の課題:
-  - 腹部Recall=0.759（目標0.800未達, EXP-006比+0.2pp）
+  - 腹部Recall=0.759（目標0.800未達, EXP-006比+1.2pp）
 
 EXP-007の戦略:
-  - データ: yolo_dataset_v7（6000枚, 腹部病変60%, 生理的集積なし50%）
-  - モデル・ハイパーパラメータはEXP-005と同一（変数を一つだけ変える）
+  - データ: yolo_dataset_v7（7000枚, 腹部病変80%, 生理的集積なし70%）
+  - モデル・ハイパーパラメータはEXP-006と同一（変数を一つだけ変える）
   - 期待: 腹部OS 80% + no-physio 70% + データ量増加で腹部Recall≥0.800突破
 
-v5 との差分:
-  - データ: yolo_dataset_v5(5000枚,腹部65%) → yolo_dataset_v7(6000枚,腹部60%)
+v6 との差分:
+  - データ: yolo_dataset_v6(6000枚,腹部60%,生理50%) → yolo_dataset_v7(7000枚,腹部80%,生理30%)
   - その他: 同一
 
 使い方:
@@ -41,7 +41,7 @@ def main():
     print(f"BoneScintiVision EXP-007 訓練 (device={device})")
     print(f"  データ: {DATA_YAML}")
     print(f"  モデル: yolo11m.pt")
-    print(f"  変更点: 6000枚 + 腹部オーバーサンプリング60%（腹部Recall↑）")
+    print(f"  変更点: 7000枚 + 腹部オーバーサンプリング80% + 生理的集積なし70%（腹部Recall↑）")
 
     model = YOLO("yolo11m.pt")
     model.train(
@@ -64,7 +64,7 @@ def main():
         verbose=False,
     )
     print(f"\nEXP-007 訓練完了: {BASE_DIR / 'runs' / 'detect' / RUN_NAME}")
-    print("次のステップ: python3.12 models/validate_detector_v6.py")
+    print("次のステップ: python3.12 models/validate_detector_v7.py")
 
 
 if __name__ == "__main__":
