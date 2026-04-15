@@ -43,11 +43,12 @@
 - **EXP-003b: mAP50=0.872, 腹部Recall=0.724 ✅** (ep124/150)
 - **EXP-004: アンサンブル (EXP-002+EXP-003b) 完了** → 腹部Recall=0.757 (目標未達), 全体Recall=0.845 ✅
   - Precision=0.633 と大幅低下
-- **EXP-005: 完了** (ep142 best) P=0.980 ✅ R=0.818 ✅ 腹部Recall=0.757 ❌(目標0.800未達)
+- **EXP-005: 完了** (ep142 best) P=0.975 R=0.849 腹部Recall=0.747 ❌(目標0.800未達)
   - `runs/detect/bone_scinti_detector_v5/weights/best.pt`
-- **EXP-006: 訓練中** (yolo11m, yolo_dataset_v6: 6000枚, 腹部60%OS, 生理的集積なし50%)
-  - run: `runs/detect/bone_scinti_detector_v62/` (PID 43267)
-  - 完了後: `python3.12 models/validate_detector_v6.py --n 200` で検証
+- **EXP-006: 完了** (ep150 best) P=0.974 ✅ R=0.853 ✅ 腹部Recall=0.759 ❌(目標0.800未達)
+  - `runs/detect/bone_scinti_detector_v62/weights/best.pt`
+  - EXP-005比: 全体Recall+0.4pp、腹部Recall+1.2pp（目標まで残り+4.1pp）
+  - 次: EXP-007（腹部OS 80%、no-physio 70%）または2段階検出アーキテクチャ
 
 ## テスト (158件)
 ```bash

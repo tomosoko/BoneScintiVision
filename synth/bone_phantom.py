@@ -80,11 +80,14 @@ class BonePhantom:
     IMG_W = 256
     IMG_H = 512
 
-    def __init__(self, body_size: float = 1.0, seed: int = None):
+    def __init__(self, body_size: float = 1.0, seed: int = None, region_blur: int = 0):
         """
         body_size: 1.0=標準体型, 0.8〜1.2で体型バリエーション
+        region_blur: 骨領域描画後のGaussianBlurシグマ (0=なし、3=標準)
+                     EXP-005/006以前のデータはblur=0で生成済み → 検証時は0を使用
         """
         self.body_size = body_size
+        self.region_blur = region_blur
         self.cx = self.IMG_W // 2      # 体の中心X
         self.rng = np.random.default_rng(seed)
         self._define_regions()
@@ -142,7 +145,7 @@ class BonePhantom:
         }
 
     def _draw_region(self, canvas: np.ndarray, region: AnatomicalRegion,
-                     intensity: float, blur: int = 3) -> None:
+                     intensity: float, blur: int = None) -> None:
         """キャンバスに骨領域を描画"""
         cx, cy = region.center
         w, h = region.width, region.height
@@ -192,8 +195,9 @@ class BonePhantom:
             cv2.polylines(canvas, [pts], False, col, self._s(7))
 
         # ソフトブラー（ガンマカメラの低解像度を模擬）
-        if blur > 0:
-            canvas[:] = cv2.GaussianBlur(canvas, (0, 0), blur)
+        effective_blur = self.region_blur if blur is None else blur
+        if effective_blur > 0:
+            canvas[:] = cv2.GaussianBlur(canvas, (0, 0), effective_blur)
 
     def get_anterior_view(self, add_variation: bool = True) -> Tuple[np.ndarray, Dict]:
         """
