@@ -116,8 +116,8 @@ def run_validation_v2(model_path: str, n_test: int = 100) -> Dict:
             else:
                 gt_regions.append("extremities")
 
-        # 前面側の予測のみ (x < 256)
-        pred_ant = [pb for pb in pred_boxes if pb[0] < ANT_W and pb[2] < ANT_W + 20]
+        # 前面側の予測のみ: ボックス中心が x < 256 のもの
+        pred_ant = [pb for pb in pred_boxes if (pb[0] + pb[2]) / 2 < ANT_W]
         count_errors.append(len(pred_ant) - len(gt_boxes))
 
         matched_gt = set()

@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
 RUNS_DIR = BASE_DIR / "runs"
-DEFAULT_MODEL = RUNS_DIR / "bone_scinti_detector_v1" / "weights" / "best.pt"
+DEFAULT_MODEL = RUNS_DIR / "detect" / "bone_scinti_detector_v62" / "weights" / "best.pt"
 
 
 def update_experiments_md(results: dict, model_path: str, elapsed: float):
@@ -30,7 +30,9 @@ def update_experiments_md(results: dict, model_path: str, elapsed: float):
     content = exp_path.read_text(encoding="utf-8")
 
     # 最終結果テーブルを更新
-    final_results = f"""### 最終結果（2026-04-12, 評価完了）
+    from datetime import date
+    today = date.today().isoformat()
+    final_results = f"""### 最終結果（{today}, 評価完了）
 
 | 指標 | 値 |
 |---|---|
@@ -70,11 +72,11 @@ def run_eval(model_path: str, n_test: int = 100, save_demo: bool = True):
     print(f"  モデル: {model_path}")
     print("=" * 60)
 
-    # 1. Precision/Recall/F1 評価
+    # 1. Precision/Recall/F1 評価 (dual-view v2 ロジック使用)
     print("\n[1/3] 検出精度評価...")
-    from models.validate_detector import run_validation
+    from models.validate_detector_v2 import run_validation_v2
     t0 = time.time()
-    results = run_validation(model_path, n_test=n_test)
+    results = run_validation_v2(model_path, n_test=n_test)
     elapsed = time.time() - t0
 
     # 2. 推論デモグリッド

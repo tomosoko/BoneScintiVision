@@ -149,7 +149,7 @@ class BonePhantom:
         """キャンバスに骨領域を描画"""
         cx, cy = region.center
         w, h = region.width, region.height
-        col = int(np.clip(intensity * 255, 0, 255))
+        col = float(np.clip(intensity, 0.0, 1.0))
 
         if region.shape == "ellipse":
             cv2.ellipse(canvas, (cx, cy), (w // 2, h // 2), 0, 0, 360, col, -1)

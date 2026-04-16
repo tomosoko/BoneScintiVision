@@ -153,9 +153,9 @@ def run_ensemble_validation(
         keep_idx = nms(all_boxes, all_scores, nms_iou)
         merged_boxes = [all_boxes[k] for k in keep_idx]
 
-        # 前面側のみ評価 (x < ANT_W)
+        # 前面側のみ評価: ボックス中心が x < ANT_W のもの
         pred_ant = [
-            pb for pb in merged_boxes if pb[0] < ANT_W and pb[2] < ANT_W + 20
+            pb for pb in merged_boxes if (pb[0] + pb[2]) / 2 < ANT_W
         ]
 
         # GT ボックス

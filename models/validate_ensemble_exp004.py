@@ -124,7 +124,7 @@ def run_ensemble(model_path_v2: str, model_path_v3b: str,
         merged = nms_boxes(boxes_confs, iou_thresh=iou_nms)
 
         # 前面側のみ評価
-        pred_ant = [pb for pb in merged if pb[0] < ANT_W and pb[2] < ANT_W + 20]
+        pred_ant = [pb for pb in merged if (pb[0] + pb[2]) / 2 < ANT_W]
 
         # GT
         gt_boxes = []

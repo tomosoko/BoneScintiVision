@@ -144,7 +144,7 @@ class TestDrawRegionBlur:
         canvas_blur = np.zeros((512, 256), dtype=np.float32)
         phantom._draw_region(canvas_blur, region, intensity=0.5, blur=5)
 
-        # シャープ版の値は 0.0 か 0.5 の2値に近い
+        # シャープ版の値は 0.0 か intensity=0.5 の2値に近い
         # ブラー版はその中間値を持つピクセルが存在する
         intermediate_blur = ((canvas_blur > 0.01) & (canvas_blur < 0.45)).sum()
         intermediate_sharp = ((canvas_sharp > 0.01) & (canvas_sharp < 0.45)).sum()
@@ -160,8 +160,8 @@ class TestDrawRegionBlur:
         phantom._draw_region(canvas, region, intensity=0.5, blur=0)
         nonzero = canvas[canvas > 0]
         assert len(nonzero) > 0
-        # col = int(intensity * 255) = 127。ブラーなしなら値は127のみ
-        expected_col = int(0.5 * 255)  # 127
+        # col = float(intensity) = 0.5。ブラーなしなら値は0.5のみ
+        expected_col = 0.5
         unique_vals = np.unique(nonzero)
         assert len(unique_vals) == 1, f"blur=0で複数の値が存在する: {unique_vals}"
-        assert abs(unique_vals[0] - expected_col) < 2
+        assert abs(unique_vals[0] - expected_col) < 0.01

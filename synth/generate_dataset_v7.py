@@ -44,9 +44,9 @@ N_WORKERS = 10
 CLASS_HOT_SPOT = 0
 OUT_DIR = BASE_DIR / "data" / "yolo_dataset_v7"
 
-# v6: 生理的集積なし比率50%維持 (v4と同じ)
+# v7: 生理的集積なし比率を70%に引き上げ（v6=50%）
 NO_PHYSIO_PROB = 0.70
-# v6: 腹部病変強制追加確率を45%→60%に引き上げ
+# v7: 腹部病変強制追加確率を80%に引き上げ（v6=60%）
 ABDOMEN_OVERSAMPLE_PROB = 0.80
 
 # 腹部/骨盤に含まれる部位（Y > 55% 相当）
