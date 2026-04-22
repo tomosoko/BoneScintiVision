@@ -40,18 +40,17 @@
 | `models/score_burden.py` | 骨転移スコアリング |
 | `EXPERIMENTS.md` | 実験ログ |
 
-## 現在の状態（2026-04-15）
+## 現在の状態（2026-04-23）
 - EXP-001: mAP50=0.784, F1=0.862 ✅
 - EXP-002: mAP50=0.844, 腹部Recall=0.711 ✅
 - **EXP-003b: mAP50=0.872, 腹部Recall=0.724 ✅** (ep124/150)
-- **EXP-004: アンサンブル (EXP-002+EXP-003b) 完了** → 腹部Recall=0.757 (目標未達), 全体Recall=0.845 ✅
-  - Precision=0.633 と大幅低下
-- **EXP-005: 完了** (ep142 best) P=0.975 R=0.849 腹部Recall=0.747 ❌(目標0.800未達)
-  - `runs/detect/bone_scinti_detector_v5/weights/best.pt`
-- **EXP-006: 完了** (ep150 best) P=0.974 ✅ R=0.853 ✅ 腹部Recall=0.759 ❌(目標0.800未達)
-  - `runs/detect/bone_scinti_detector_v62/weights/best.pt`
-  - EXP-005比: 全体Recall+0.4pp、腹部Recall+1.2pp（目標まで残り+4.1pp）
-  - 次: EXP-007（腹部OS 80%、no-physio 70%）または2段階検出アーキテクチャ
+- **EXP-004: アンサンブル (EXP-002+EXP-003b) 完了** → 腹部Recall=0.757 (目標未達)
+- **EXP-005: 完了** P=0.975 R=0.849 腹部Recall=0.747 ❌
+- **EXP-006: 完了** P=0.974 R=0.853 腹部Recall=0.759 ❌
+- **EXP-007: 完了** P=0.707 R=0.899 **腹部Recall=0.828 ✅（目標0.800初達成）**
+  - `runs/detect/bone_scinti_detector_v7-2/weights/best.pt`
+  - 全部位でEXP-006を上回るが、Precision=0.707が課題（FP過多）
+  - 次: conf閾値最適化 or 生理的集積マスク後処理 or Precision回復データ戦略
 
 ## テスト (158件)
 ```bash

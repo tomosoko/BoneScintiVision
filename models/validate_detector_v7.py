@@ -17,7 +17,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-V7_DEFAULT_MODEL = BASE_DIR / "runs" / "detect" / "bone_scinti_detector_v7" / "weights" / "best.pt"
+V7_DEFAULT_MODEL = BASE_DIR / "runs" / "detect" / "bone_scinti_detector_v7-2" / "weights" / "best.pt"
 
 
 if __name__ == "__main__":
