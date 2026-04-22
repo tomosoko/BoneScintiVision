@@ -37,6 +37,7 @@
 | `synth/generate_dataset_v7.py` | v7データセット生成（7000枚, 腹部80%, 生理的集積なし70%）|
 | `models/train_detector_v7.py` | EXP-007 訓練 (yolo11m, v7データ, 7000枚) |
 | `models/validate_detector_v7.py` | EXP-007 検証（腹部Recall≥0.800目標）|
+| `models/optimize_conf_threshold.py` | EXP-007a conf閾値最適化（0.05〜0.70スイープ）|
 | `models/score_burden.py` | 骨転移スコアリング |
 | `EXPERIMENTS.md` | 実験ログ |
 
@@ -50,7 +51,9 @@
 - **EXP-007: 完了** P=0.707 R=0.899 **腹部Recall=0.828 ✅（目標0.800初達成）**
   - `runs/detect/bone_scinti_detector_v7-2/weights/best.pt`
   - 全部位でEXP-006を上回るが、Precision=0.707が課題（FP過多）
-  - 次: conf閾値最適化 or 生理的集積マスク後処理 or Precision回復データ戦略
+- **EXP-007a: conf閾値最適化完了** → 閾値のみではP≥0.900+腹部R≥0.800同時達成不可
+  - 推奨 conf=0.45: P=0.761, R=0.888, 腹部R=0.810, F1=0.820
+  - 次: 生理的集積マスク後処理 or Precision回復データ戦略（生理的集積比率調整）
 
 ## テスト (158件)
 ```bash
@@ -73,6 +76,7 @@ python3.12 models/validate_detector_v6.py     # EXP-006検証 (腹部Recall≥0.
 python3.12 models/train_detector_v7.py        # EXP-007訓練 (bone_scinti_detector_v7)
 python3.12 models/validate_detector_v7.py     # EXP-007検証 (腹部Recall≥0.800目標)
 python3.12 models/validate_ensemble_v4.py     # EXP-004アンサンブル評価
+python3.12 models/optimize_conf_threshold.py  # EXP-007a conf閾値最適化
 ```
 
 ## venv
