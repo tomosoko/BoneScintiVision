@@ -40,6 +40,9 @@
 | `models/optimize_conf_threshold.py` | EXP-007a conf閾値最適化（0.05〜0.70スイープ）|
 | `models/physio_mask.py` | EXP-008 生理的集積マスク（腎臓・膀胱 FP 抑制）|
 | `models/validate_detector_v8.py` | EXP-008 検証（physio mask + EXP-007モデル）|
+| `synth/generate_dataset_v8.py` | v8データセット生成（7000枚, 腹部80%, 生理的集積なし55%）|
+| `models/train_detector_v8.py` | EXP-009 訓練 (yolo11m, v8データ, 生理的集積比率調整) |
+| `models/validate_detector_v9.py` | EXP-009 検証（EXP-007比較、Precision改善確認）|
 | `models/score_burden.py` | 骨転移スコアリング |
 | `EXPERIMENTS.md` | 実験ログ |
 
@@ -59,8 +62,11 @@
   - 最良設定 suppress_conf=0.45: P=0.718 (+0.011), 腹部R=0.810, FP削減 274→258 (-5.8%)
   - Precision≥0.900 達成不可（マスク後処理のみでは効果限定的）
   - 次ステップ候補:
-    - EXP-009: 生理的集積なし比率調整（v7: 70% → v8: 55%）+ 再訓練
+    - EXP-009: 生理的集積なし比率調整（v7: 70% → v8: 55%）+ 再訓練 ← **スクリプト作成済み**
     - または EXP-007a の conf=0.45 (P=0.761, 腹部R=0.810) を現状ベストとして採用
+- **EXP-009: スクリプト準備完了**（2026-04-24）
+  - `synth/generate_dataset_v8.py` / `models/train_detector_v8.py` / `models/validate_detector_v9.py`
+  - 実行待ち: `python3.12 synth/generate_dataset_v8.py && python3.12 models/train_detector_v8.py`
 
 ## テスト (184件)
 ```bash
@@ -85,6 +91,9 @@ python3.12 models/validate_detector_v7.py     # EXP-007検証 (腹部Recall≥0.
 python3.12 models/validate_ensemble_v4.py     # EXP-004アンサンブル評価
 python3.12 models/optimize_conf_threshold.py  # EXP-007a conf閾値最適化
 python3.12 models/validate_detector_v8.py     # EXP-008 生理的集積マスク後処理評価
+python3.12 synth/generate_dataset_v8.py       # v8データセット生成 (EXP-009用: 7000枚, 生理55%)
+python3.12 models/train_detector_v8.py        # EXP-009訓練 (bone_scinti_detector_v8)
+python3.12 models/validate_detector_v9.py     # EXP-009検証 (Precision改善確認)
 ```
 
 ## venv

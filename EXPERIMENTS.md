@@ -673,4 +673,53 @@ EXP-007a の閾値調整だけでは P≥0.900 + 腹部R≥0.800 が同時達成
 
 ---
 
+## EXP-009 | 生理的集積比率調整 + 再訓練（Precision改善）
+
+**日付:** 2026-04-24（計画）
+**環境:** Mac Mini M4 Pro 64GB / Python 3.12 / MPS GPU
+
+### 目的
+EXP-007/008 で明らかになった FP 過多の根本原因（no_physio=70% による生理的集積未学習）を
+データ戦略変更で解決する。
+
+### 仮説
+- EXP-007 (no_physio=70%): 訓練画像の70%に生理的集積が存在しない
+  → モデルが腎臓・膀胱周辺の輝度パターンを「異常」として誤学習
+  → 推論時に生理的集積がある画像でFPを大量発生（P=0.707）
+- no_physio を55%に下げると、より多くの訓練画像に生理的集積が含まれる
+  → モデルが「生理的集積は正常」と学習 → FP 削減 → Precision改善
+
+### 戦略
+- **データ**: yolo_dataset_v8（7000枚, 腹部80%, **生理的集積なし55% ← 70%**）
+- **モデル・訓練ハイパーパラメータ**: EXP-007と同一（変数を一つだけ変える）
+- **期待**: Precision改善（P=0.707→P≥0.800）while 腹部Recall≥0.800 維持
+- **目標**: P≥0.900 + 腹部Recall≥0.800 の同時達成（最終目標）
+
+### 差分 (EXP-007比)
+| 項目 | EXP-007 | EXP-009 |
+|---|---|---|
+| データセット | yolo_dataset_v7 | yolo_dataset_v8 |
+| 生成数 | 7000枚 | 7000枚 |
+| 腹部病変OS率 | 80% | 80% |
+| **生理的集積なし率** | **70%** | **55%** |
+| モデル | yolo11m.pt | yolo11m.pt |
+| epochs/imgsz | 150/512 | 150/512 |
+
+### ファイル
+- データ生成: `synth/generate_dataset_v8.py`
+- 訓練: `models/train_detector_v8.py`
+- 検証: `models/validate_detector_v9.py`
+
+### 実行手順
+```bash
+python3.12 synth/generate_dataset_v8.py       # v8データセット生成 (~7000枚)
+python3.12 models/train_detector_v8.py         # EXP-009 訓練 (bone_scinti_detector_v8)
+python3.12 models/validate_detector_v9.py      # EXP-009 検証
+```
+
+### 結果
+（訓練完了後に記入）
+
+---
+
 *新しい実験を追加する際は EXP-XXX の連番で追記*
