@@ -46,7 +46,7 @@
 | `models/score_burden.py` | 骨転移スコアリング |
 | `EXPERIMENTS.md` | 実験ログ |
 
-## 現在の状態（2026-04-26）
+## 現在の状態（2026-04-27）
 - EXP-001: mAP50=0.784, F1=0.862 ✅
 - EXP-002: mAP50=0.844, 腹部Recall=0.711 ✅
 - **EXP-003b: mAP50=0.872, 腹部Recall=0.724 ✅** (ep124/150)
@@ -64,11 +64,11 @@
   - 次ステップ候補:
     - EXP-009: 生理的集積なし比率調整（v7: 70% → v8: 55%）+ 再訓練 ← **スクリプト作成済み**
     - または EXP-007a の conf=0.45 (P=0.761, 腹部R=0.810) を現状ベストとして採用
-- **EXP-009: スクリプト準備完了**（2026-04-24）
+- **EXP-009: 訓練実行中**（2026-04-27）
   - `synth/generate_dataset_v8.py` / `models/train_detector_v8.py` / `models/validate_detector_v9.py`
-  - 実行待ち: `python3.12 synth/generate_dataset_v8.py && python3.12 models/train_detector_v8.py`
+  - 実行中: `python3.12 synth/generate_dataset_v8.py && python3.12 models/train_detector_v8.py`
 
-## テスト (295件)
+## テスト (308件)
 ```bash
 cd /Users/kohei/develop/research/BoneScintiVision
 /Users/kohei/develop/research/ElbowVision/elbow-api/venv/bin/python -m pytest tests/ -q
