@@ -68,7 +68,7 @@
   - `synth/generate_dataset_v8.py` / `models/train_detector_v8.py` / `models/validate_detector_v9.py`
   - 実行中: `python3.12 synth/generate_dataset_v8.py && python3.12 models/train_detector_v8.py`
 
-## テスト (308件)
+## テスト (341件)
 ```bash
 cd /Users/kohei/develop/research/BoneScintiVision
 /Users/kohei/develop/research/ElbowVision/elbow-api/venv/bin/python -m pytest tests/ -q
