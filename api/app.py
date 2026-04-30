@@ -34,7 +34,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
-MODEL_PATH = BASE_DIR / "runs" / "bone_scinti_detector_v5" / "weights" / "best.pt"
+MODEL_PATH = BASE_DIR / "runs" / "detect" / "bone_scinti_detector_v8" / "weights" / "best.pt"
 _model = None
 
 
