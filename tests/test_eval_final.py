@@ -139,3 +139,13 @@ class TestNoChangeWhenOldSectionAbsent:
         update_experiments_md(SAMPLE_RESULTS, "model.pt", 10.0)
         # results precision 0.750 should NOT appear since no replacement happened
         assert "0.750" not in tmp_path.joinpath("EXPERIMENTS.md").read_text(encoding="utf-8")
+
+
+# ─── DEFAULT_MODEL パス回帰テスト ────────────────────────────────────────────
+
+class TestDefaultModelPath:
+    def test_default_model_points_to_exp009(self):
+        assert "bone_scinti_detector_v8" in str(eval_final.DEFAULT_MODEL)
+
+    def test_default_model_not_stale_v62(self):
+        assert "bone_scinti_detector_v62" not in str(eval_final.DEFAULT_MODEL)

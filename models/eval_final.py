@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
 RUNS_DIR = BASE_DIR / "runs"
-DEFAULT_MODEL = RUNS_DIR / "detect" / "bone_scinti_detector_v62" / "weights" / "best.pt"
+DEFAULT_MODEL = RUNS_DIR / "detect" / "bone_scinti_detector_v8" / "weights" / "best.pt"
 
 
 def update_experiments_md(results: dict, model_path: str, elapsed: float):
