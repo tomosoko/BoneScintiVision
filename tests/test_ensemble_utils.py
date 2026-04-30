@@ -2,11 +2,13 @@
 import sys
 from pathlib import Path
 
+import numpy as np
+
 BASE_DIR = str(Path(__file__).parent.parent)
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from models.validate_ensemble_v4 import compute_iou, nms, _region_label
+from models.validate_ensemble_v4 import compute_iou, nms, _region_label, _resize_and_pad
 
 
 class TestComputeIou:
@@ -91,3 +93,56 @@ class TestRegionLabel:
 
     def test_boundary_075_is_extremities(self):
         assert _region_label(0.75) == "extremities"
+
+
+class TestResizeAndPad:
+    def test_output_shape_matches_target(self):
+        img = np.zeros((128, 64), dtype=np.uint8)
+        canvas, scale, px, py = _resize_and_pad(img, 256, 256)
+        assert canvas.shape == (256, 256)
+
+    def test_square_image_no_padding(self):
+        img = np.zeros((64, 64), dtype=np.uint8)
+        canvas, scale, px, py = _resize_and_pad(img, 128, 128)
+        assert px == 0
+        assert py == 0
+        assert abs(scale - 2.0) < 1e-6
+
+    def test_wide_image_padded_vertically(self):
+        # 200×100 → fit into 200×200: scale=1.0, py>0
+        img = np.zeros((100, 200), dtype=np.uint8)
+        canvas, scale, px, py = _resize_and_pad(img, 200, 200)
+        assert canvas.shape == (200, 200)
+        assert py > 0
+        assert px == 0
+
+    def test_tall_image_padded_horizontally(self):
+        # 100×200 → fit into 200×200: scale=1.0, px>0
+        img = np.zeros((200, 100), dtype=np.uint8)
+        canvas, scale, px, py = _resize_and_pad(img, 200, 200)
+        assert canvas.shape == (200, 200)
+        assert px > 0
+        assert py == 0
+
+    def test_returns_tuple_of_four(self):
+        img = np.zeros((64, 64), dtype=np.uint8)
+        result = _resize_and_pad(img, 128, 128)
+        assert len(result) == 4
+
+    def test_canvas_dtype_uint8(self):
+        img = np.zeros((64, 64), dtype=np.uint8)
+        canvas, *_ = _resize_and_pad(img, 128, 128)
+        assert canvas.dtype == np.uint8
+
+    def test_content_preserved(self):
+        # White square → padded canvas centre region should be white
+        img = np.full((50, 50), 255, dtype=np.uint8)
+        canvas, scale, px, py = _resize_and_pad(img, 100, 100)
+        assert canvas[py + 5, px + 5] == 255
+
+    def test_background_is_zero(self):
+        # Tall image padded on sides — leftmost column should be black
+        img = np.full((100, 50), 200, dtype=np.uint8)
+        canvas, scale, px, py = _resize_and_pad(img, 100, 100)
+        assert px > 0
+        assert canvas[50, 0] == 0  # left padding column is black
