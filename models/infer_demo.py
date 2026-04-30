@@ -145,7 +145,7 @@ def make_infer_grid(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default=str(RUNS_DIR / "detect" / "bone_scinti_detector_v62" / "weights" / "best.pt"))
+    parser.add_argument("--model", default=str(RUNS_DIR / "detect" / "bone_scinti_detector_v8" / "weights" / "best.pt"))
     parser.add_argument("--n", type=int, default=9)
     parser.add_argument("--conf", type=float, default=0.25)
     parser.add_argument("--out", default="/tmp/bonescinti_infer_demo.png")
