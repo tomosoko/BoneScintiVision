@@ -163,3 +163,26 @@ class TestComputeBoneBurdenScore:
         result_via_size = compute_bone_burden_score([det], image_size=100)
         result_via_wh   = compute_bone_burden_score([det], image_w=100, image_h=100)
         assert abs(result_via_size["total_bone_burden"] - result_via_wh["total_bone_burden"]) < 1e-6
+
+
+class TestDefaultModelPath:
+    """score_burden.py の CLI デフォルトモデルパス リグレッションテスト.
+
+    旧バグ: デフォルトパスが bone_scinti_detector_v62 (EXP-006) を指しており、
+    EXP-009 (bone_scinti_detector_v8) に更新されていなかった。
+    このテストで再発を防ぐ。
+    """
+
+    def test_default_model_points_to_exp009(self):
+        """CLI デフォルトモデルが EXP-009 (bone_scinti_detector_v8) を指すこと。"""
+        import inspect
+        import models.score_burden as mod
+        src = inspect.getsource(mod)
+        assert "bone_scinti_detector_v8" in src
+
+    def test_default_model_not_stale_v62(self):
+        """旧 EXP-006 モデル (bone_scinti_detector_v62) がデフォルトに残っていないこと。"""
+        import inspect
+        import models.score_burden as mod
+        src = inspect.getsource(mod)
+        assert "bone_scinti_detector_v62" not in src

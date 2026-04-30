@@ -275,7 +275,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BoneScintiVision スコアリング")
     parser.add_argument("--image", type=str, help="単一画像パス")
     parser.add_argument("--dir",   type=str, help="ディレクトリ（バッチ）")
-    parser.add_argument("--model", default=str(RUNS_DIR / "detect" / "bone_scinti_detector_v62" / "weights" / "best.pt"))
+    parser.add_argument("--model", default=str(RUNS_DIR / "detect" / "bone_scinti_detector_v8" / "weights" / "best.pt"))
     parser.add_argument("--conf",  type=float, default=0.25)
     parser.add_argument("--out",   type=str, default=None, help="JSON出力パス（バッチ時）")
     args = parser.parse_args()
