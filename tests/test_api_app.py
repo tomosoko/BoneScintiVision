@@ -4,8 +4,10 @@
 """
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
+from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -67,3 +69,55 @@ class TestModelPath:
             Path("runs") / "detect" / "bone_scinti_detector_v8" / "weights" / "best.pt"
         )
         assert api_app.MODEL_PATH == api_app.BASE_DIR / expected_suffix
+
+
+# ─── GET /health ─────────────────────────────────────────────────────────────
+
+class TestHealthEndpoint:
+    """GET /health — YOLO不要、モデルファイル存在をモジュール属性パッチで制御"""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(api_app.app)
+
+    def test_health_returns_200(self, client):
+        with patch("api.app.MODEL_PATH") as mock_path:
+            mock_path.exists.return_value = True
+            resp = client.get("/health")
+        assert resp.status_code == 200
+
+    def test_health_status_is_ok(self, client):
+        with patch("api.app.MODEL_PATH") as mock_path:
+            mock_path.exists.return_value = True
+            resp = client.get("/health")
+        assert resp.json()["status"] == "ok"
+
+    def test_health_model_ready_true_when_model_exists(self, client):
+        with patch("api.app.MODEL_PATH") as mock_path:
+            mock_path.exists.return_value = True
+            resp = client.get("/health")
+        assert resp.json()["model_ready"] is True
+
+    def test_health_model_ready_false_when_model_missing(self, client):
+        with patch("api.app.MODEL_PATH") as mock_path:
+            mock_path.exists.return_value = False
+            resp = client.get("/health")
+        assert resp.json()["model_ready"] is False
+
+    def test_health_response_has_status_key(self, client):
+        with patch("api.app.MODEL_PATH") as mock_path:
+            mock_path.exists.return_value = False
+            resp = client.get("/health")
+        assert "status" in resp.json()
+
+    def test_health_response_has_model_ready_key(self, client):
+        with patch("api.app.MODEL_PATH") as mock_path:
+            mock_path.exists.return_value = False
+            resp = client.get("/health")
+        assert "model_ready" in resp.json()
+
+    def test_health_content_type_is_json(self, client):
+        with patch("api.app.MODEL_PATH") as mock_path:
+            mock_path.exists.return_value = True
+            resp = client.get("/health")
+        assert "application/json" in resp.headers["content-type"]
