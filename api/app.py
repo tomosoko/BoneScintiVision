@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 BASE_DIR = Path(__file__).parent.parent
@@ -48,13 +47,19 @@ def get_model():
     return _model
 
 
+class RiskStage(BaseModel):
+    stage: str
+    label: str
+    n_lesions: int
+
+
 class ScoreResponse(BaseModel):
     n_lesions: int
-    total_bone_burden: float   # % of image area
-    bsi_equivalent: float      # BSI相当スコア
+    total_bone_burden: float        # % of image area
+    bsi_equivalent: float           # BSI相当スコア
     mean_conf: float
-    region_scores: dict
-    risk_stage: dict
+    region_scores: dict[str, float]
+    risk_stage: RiskStage
 
 
 @app.get("/health")
@@ -103,4 +108,4 @@ async def score_image(
             })
 
     score = compute_bone_burden_score(detections, image_w=img.shape[1], image_h=img.shape[0])
-    return JSONResponse(content=score)
+    return score

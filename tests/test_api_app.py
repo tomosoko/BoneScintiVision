@@ -147,11 +147,107 @@ class TestScoreResponse:
     def test_mean_conf_type_is_float(self):
         assert api_app.ScoreResponse.model_fields["mean_conf"].annotation is float
 
-    def test_region_scores_type_is_dict(self):
-        assert api_app.ScoreResponse.model_fields["region_scores"].annotation is dict
+    def test_region_scores_type_is_dict_str_float(self):
+        ann = api_app.ScoreResponse.model_fields["region_scores"].annotation
+        assert ann == dict[str, float]
 
-    def test_risk_stage_type_is_dict(self):
-        assert api_app.ScoreResponse.model_fields["risk_stage"].annotation is dict
+    def test_risk_stage_type_is_risk_stage(self):
+        assert api_app.ScoreResponse.model_fields["risk_stage"].annotation is api_app.RiskStage
+
+
+# ─── RiskStage スキーマ ──────────────────────────────────────────────────────
+
+class TestRiskStage:
+    """RiskStage Pydantic モデルの定義確認"""
+
+    def test_model_fields_exist(self):
+        fields = api_app.RiskStage.model_fields
+        expected = {"stage", "label", "n_lesions"}
+        assert expected == set(fields.keys())
+
+    def test_stage_type_is_str(self):
+        assert api_app.RiskStage.model_fields["stage"].annotation is str
+
+    def test_label_type_is_str(self):
+        assert api_app.RiskStage.model_fields["label"].annotation is str
+
+    def test_n_lesions_type_is_int(self):
+        assert api_app.RiskStage.model_fields["n_lesions"].annotation is int
+
+    def test_valid_instance(self):
+        rs = api_app.RiskStage(stage="Stage 0", label="正常範囲", n_lesions=0)
+        assert rs.stage == "Stage 0"
+
+
+# ─── response_model validation ──────────────────────────────────────────────
+
+class TestResponseModelValidation:
+    """POST /score がresponse_model経由でPydantic検証されることを確認"""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(api_app.app)
+
+    @staticmethod
+    def _make_png(width=256, height=256):
+        import cv2 as _cv2
+        img = np.zeros((height, width, 3), dtype=np.uint8)
+        _, buf = _cv2.imencode(".png", img)
+        return buf.tobytes()
+
+    @staticmethod
+    def _mock_boxes(detections):
+        boxes = MagicMock()
+        if not detections:
+            boxes.__len__ = lambda self: 0
+            boxes.__bool__ = lambda self: False
+            return boxes
+        xyxy = np.array([[d[0], d[1], d[2], d[3]] for d in detections])
+        confs = np.array([d[4] for d in detections])
+        xyxy_tensor = MagicMock()
+        xyxy_tensor.cpu.return_value.numpy.return_value = xyxy
+        confs_tensor = MagicMock()
+        confs_tensor.cpu.return_value.numpy.return_value = confs
+        boxes.xyxy = xyxy_tensor
+        boxes.conf = confs_tensor
+        boxes.__len__ = lambda self: len(detections)
+        boxes.__bool__ = lambda self: True
+        return boxes
+
+    def _mock_model(self, detections):
+        model = MagicMock()
+        result = MagicMock()
+        result.boxes = self._mock_boxes(detections)
+        model.return_value = [result]
+        return model
+
+    def test_response_validates_against_score_response(self, client):
+        """レスポンスがScoreResponseスキーマに適合することを確認"""
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score", files={"file": ("test.png", self._make_png(), "image/png")})
+        data = resp.json()
+        # Pydantic で再検証 — 不適合ならここで例外
+        validated = api_app.ScoreResponse(**data)
+        assert validated.n_lesions == data["n_lesions"]
+
+    def test_risk_stage_is_nested_object(self, client):
+        """risk_stage がネストされたオブジェクト（stage/label/n_lesions）で返る"""
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score", files={"file": ("test.png", self._make_png(), "image/png")})
+        risk = resp.json()["risk_stage"]
+        assert isinstance(risk["stage"], str)
+        assert isinstance(risk["label"], str)
+        assert isinstance(risk["n_lesions"], int)
+
+    def test_region_scores_values_are_floats(self, client):
+        """region_scores の値がすべて float"""
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score", files={"file": ("test.png", self._make_png(), "image/png")})
+        for v in resp.json()["region_scores"].values():
+            assert isinstance(v, (int, float))
 
 
 # ─── get_model ────────────────────────────────────────────────────────────────
