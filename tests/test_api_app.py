@@ -435,6 +435,38 @@ class TestScoreEndpoint:
         _, kwargs = model.call_args
         assert kwargs["conf"] == 0.25
 
+    def test_score_conf_negative_returns_422(self, client):
+        """conf < 0.0 → 422 バリデーションエラー"""
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score?conf=-0.1",
+                               files={"file": ("test.png", self._make_png(), "image/png")})
+        assert resp.status_code == 422
+
+    def test_score_conf_above_one_returns_422(self, client):
+        """conf > 1.0 → 422 バリデーションエラー"""
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score?conf=1.5",
+                               files={"file": ("test.png", self._make_png(), "image/png")})
+        assert resp.status_code == 422
+
+    def test_score_conf_zero_is_valid(self, client):
+        """conf=0.0 は有効"""
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score?conf=0.0",
+                               files={"file": ("test.png", self._make_png(), "image/png")})
+        assert resp.status_code == 200
+
+    def test_score_conf_one_is_valid(self, client):
+        """conf=1.0 は有効"""
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score?conf=1.0",
+                               files={"file": ("test.png", self._make_png(), "image/png")})
+        assert resp.status_code == 200
+
     # ── エラー系 ──
 
     def test_score_invalid_image_returns_400(self, client):

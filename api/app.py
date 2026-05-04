@@ -19,7 +19,7 @@ import cv2
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from pydantic import BaseModel
 
 BASE_DIR = Path(__file__).parent.parent
@@ -71,7 +71,7 @@ def health():
 @app.post("/score", response_model=ScoreResponse)
 async def score_image(
     file: UploadFile = File(...),
-    conf: float = 0.25,
+    conf: float = Query(default=0.25, ge=0.0, le=1.0),
 ):
     """
     骨シンチグラフィ画像をアップロードしてスコアを取得。
