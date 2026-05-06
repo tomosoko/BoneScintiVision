@@ -60,6 +60,31 @@ RISK_STAGES = [
 ]
 
 
+def extract_detections(boxes) -> List[Dict]:
+    """YOLO boxes結果から検出リストを抽出する。
+
+    Args:
+        boxes: ultralytics Results.boxes オブジェクト（xyxy, conf属性を持つ）
+
+    Returns:
+        [{x, y, w, h, conf}] 中心座標・幅・高さ・信頼度の辞書リスト
+    """
+    detections = []
+    if boxes is not None and len(boxes) > 0:
+        xyxy = boxes.xyxy.cpu().numpy()
+        confs = boxes.conf.cpu().numpy()
+        for b, c in zip(xyxy, confs):
+            x1, y1, x2, y2 = b[:4]
+            detections.append({
+                "x": float((x1 + x2) / 2),
+                "y": float((y1 + y2) / 2),
+                "w": float(x2 - x1),
+                "h": float(y2 - y1),
+                "conf": float(c),
+            })
+    return detections
+
+
 def classify_clinical_region(y_center_norm: float) -> str:
     """Y座標（0〜1正規化）から臨床領域を返す"""
     for region, (y0, y1) in CLINICAL_REGIONS.items():
@@ -172,21 +197,7 @@ def run_inference_and_score(
 
     model = YOLO(model_path)
     results = model(img, verbose=False, conf=conf)
-    boxes = results[0].boxes
-
-    detections = []
-    if boxes is not None and len(boxes) > 0:
-        xyxy = boxes.xyxy.cpu().numpy()
-        confs = boxes.conf.cpu().numpy()
-        for b, c in zip(xyxy, confs):
-            x1, y1, x2, y2 = b[:4]
-            detections.append({
-                "x": float((x1 + x2) / 2),
-                "y": float((y1 + y2) / 2),
-                "w": float(x2 - x1),
-                "h": float(y2 - y1),
-                "conf": float(c),
-            })
+    detections = extract_detections(results[0].boxes)
 
     score = compute_bone_burden_score(detections, image_w=img.shape[1], image_h=img.shape[0])
 
@@ -238,24 +249,11 @@ def batch_score(
         img = cv2.imread(str(img_path))
         if img is None:
             continue
-        if len(img.shape) == 2:
+        if len(img.shape) == 2 or img.shape[2] == 1:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
 
         res = model(img, verbose=False, conf=conf)
-        boxes = res[0].boxes
-        detections = []
-        if boxes is not None and len(boxes) > 0:
-            xyxy = boxes.xyxy.cpu().numpy()
-            confs = boxes.conf.cpu().numpy()
-            for b, c in zip(xyxy, confs):
-                x1, y1, x2, y2 = b[:4]
-                detections.append({
-                    "x": float((x1 + x2) / 2),
-                    "y": float((y1 + y2) / 2),
-                    "w": float(x2 - x1),
-                    "h": float(y2 - y1),
-                    "conf": float(c),
-                })
+        detections = extract_detections(res[0].boxes)
 
         score = compute_bone_burden_score(
             detections, image_w=img.shape[1], image_h=img.shape[0]

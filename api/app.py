@@ -25,7 +25,7 @@ from pydantic import BaseModel
 BASE_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-from models.score_burden import compute_bone_burden_score
+from models.score_burden import compute_bone_burden_score, extract_detections
 
 app = FastAPI(
     title="BoneScintiVision API",
@@ -91,21 +91,7 @@ async def score_image(
         raise HTTPException(status_code=503, detail=str(e))
 
     results = model(img, verbose=False, conf=conf)
-    boxes = results[0].boxes
-
-    detections = []
-    if boxes is not None and len(boxes) > 0:
-        xyxy = boxes.xyxy.cpu().numpy()
-        confs = boxes.conf.cpu().numpy()
-        for b, c in zip(xyxy, confs):
-            x1, y1, x2, y2 = b[:4]
-            detections.append({
-                "x": float((x1 + x2) / 2),
-                "y": float((y1 + y2) / 2),
-                "w": float(x2 - x1),
-                "h": float(y2 - y1),
-                "conf": float(c),
-            })
+    detections = extract_detections(results[0].boxes)
 
     score = compute_bone_burden_score(detections, image_w=img.shape[1], image_h=img.shape[0])
     return score

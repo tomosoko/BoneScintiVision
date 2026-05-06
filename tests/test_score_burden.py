@@ -9,6 +9,7 @@ from models.score_burden import (
     classify_clinical_region,
     classify_risk_stage,
     compute_bone_burden_score,
+    extract_detections,
     CLINICAL_REGIONS,
     REGION_WEIGHTS,
 )
@@ -186,3 +187,76 @@ class TestDefaultModelPath:
         import models.score_burden as mod
         src = inspect.getsource(mod)
         assert "bone_scinti_detector_v62" not in src
+
+
+class _FakeBoxes:
+    """YOLO boxes オブジェクトのミニマルモック."""
+
+    def __init__(self, xyxy_list, conf_list):
+        import numpy as np
+
+        class _Tensor:
+            def __init__(self, data):
+                self._data = np.array(data, dtype=np.float32)
+
+            def cpu(self):
+                return self
+
+            def numpy(self):
+                return self._data
+
+        self.xyxy = _Tensor(xyxy_list)
+        self.conf = _Tensor(conf_list)
+
+    def __len__(self):
+        return len(self.conf.cpu().numpy())
+
+
+class TestExtractDetections:
+    def test_none_boxes_returns_empty(self):
+        assert extract_detections(None) == []
+
+    def test_empty_boxes_returns_empty(self):
+        boxes = _FakeBoxes([], [])
+        assert extract_detections(boxes) == []
+
+    def test_single_box_returns_one_detection(self):
+        boxes = _FakeBoxes([[10, 20, 30, 40]], [0.9])
+        result = extract_detections(boxes)
+        assert len(result) == 1
+
+    def test_center_coordinates(self):
+        boxes = _FakeBoxes([[10, 20, 30, 40]], [0.9])
+        d = extract_detections(boxes)[0]
+        assert abs(d["x"] - 20.0) < 1e-5  # (10+30)/2
+        assert abs(d["y"] - 30.0) < 1e-5  # (20+40)/2
+
+    def test_width_height(self):
+        boxes = _FakeBoxes([[10, 20, 30, 50]], [0.8])
+        d = extract_detections(boxes)[0]
+        assert abs(d["w"] - 20.0) < 1e-5  # 30-10
+        assert abs(d["h"] - 30.0) < 1e-5  # 50-20
+
+    def test_conf_value(self):
+        boxes = _FakeBoxes([[0, 0, 10, 10]], [0.75])
+        d = extract_detections(boxes)[0]
+        assert abs(d["conf"] - 0.75) < 1e-5
+
+    def test_multiple_boxes(self):
+        boxes = _FakeBoxes(
+            [[0, 0, 10, 10], [20, 20, 40, 40], [50, 50, 60, 60]],
+            [0.9, 0.8, 0.7],
+        )
+        result = extract_detections(boxes)
+        assert len(result) == 3
+
+    def test_all_values_are_float(self):
+        boxes = _FakeBoxes([[10, 20, 30, 40]], [0.9])
+        d = extract_detections(boxes)[0]
+        for key in ("x", "y", "w", "h", "conf"):
+            assert isinstance(d[key], float)
+
+    def test_required_keys_present(self):
+        boxes = _FakeBoxes([[0, 0, 10, 10]], [0.5])
+        d = extract_detections(boxes)[0]
+        assert set(d.keys()) == {"x", "y", "w", "h", "conf"}
