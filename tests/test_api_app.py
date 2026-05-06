@@ -132,7 +132,7 @@ class TestScoreResponse:
     def test_model_fields_exist(self):
         fields = api_app.ScoreResponse.model_fields
         expected = {"n_lesions", "total_bone_burden", "bsi_equivalent",
-                    "mean_conf", "region_scores", "risk_stage"}
+                    "mean_conf", "region_scores", "risk_stage", "detections"}
         assert expected == set(fields.keys())
 
     def test_n_lesions_type_is_int(self):
@@ -524,3 +524,142 @@ class TestScoreEndpoint:
             resp = client.post("/score",
                                files={"file": ("test.jpg", jpeg_bytes, "image/jpeg")})
         assert resp.status_code == 200
+
+
+# ─── detections フィールド ────────────────────────────────────────────────────
+
+class TestDetectionsField:
+    """POST /score のレスポンスに detections フィールドが含まれることを確認"""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(api_app.app)
+
+    @staticmethod
+    def _make_png(width=256, height=256):
+        import cv2 as _cv2
+        img = np.zeros((height, width, 3), dtype=np.uint8)
+        _, buf = _cv2.imencode(".png", img)
+        return buf.tobytes()
+
+    @staticmethod
+    def _mock_boxes(detections):
+        boxes = MagicMock()
+        if not detections:
+            boxes.__len__ = lambda self: 0
+            boxes.__bool__ = lambda self: False
+            return boxes
+        xyxy = np.array([[d[0], d[1], d[2], d[3]] for d in detections])
+        confs = np.array([d[4] for d in detections])
+        xyxy_tensor = MagicMock()
+        xyxy_tensor.cpu.return_value.numpy.return_value = xyxy
+        confs_tensor = MagicMock()
+        confs_tensor.cpu.return_value.numpy.return_value = confs
+        boxes.xyxy = xyxy_tensor
+        boxes.conf = confs_tensor
+        boxes.__len__ = lambda self: len(detections)
+        boxes.__bool__ = lambda self: True
+        return boxes
+
+    def _mock_model(self, detections):
+        model = MagicMock()
+        result = MagicMock()
+        result.boxes = self._mock_boxes(detections)
+        model.return_value = [result]
+        return model
+
+    def test_detections_key_present_in_response(self, client):
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score", files={"file": ("test.png", self._make_png(), "image/png")})
+        assert "detections" in resp.json()
+
+    def test_detections_is_list(self, client):
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score", files={"file": ("test.png", self._make_png(), "image/png")})
+        assert isinstance(resp.json()["detections"], list)
+
+    def test_detections_count_matches_n_lesions(self, client):
+        dets = [(10, 20, 30, 40, 0.9), (50, 60, 70, 80, 0.8)]
+        model = self._mock_model(dets)
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score", files={"file": ("test.png", self._make_png(), "image/png")})
+        data = resp.json()
+        assert len(data["detections"]) == data["n_lesions"]
+
+    def test_detections_empty_when_no_lesions(self, client):
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score", files={"file": ("test.png", self._make_png(), "image/png")})
+        assert resp.json()["detections"] == []
+
+    def test_detection_has_required_keys(self, client):
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score", files={"file": ("test.png", self._make_png(), "image/png")})
+        det = resp.json()["detections"][0]
+        for key in ("x", "y", "w", "h", "conf", "region"):
+            assert key in det, f"Missing key: {key}"
+
+    def test_detection_region_is_valid_clinical_region(self, client):
+        from models.score_burden import CLINICAL_REGIONS
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score", files={"file": ("test.png", self._make_png(), "image/png")})
+        det = resp.json()["detections"][0]
+        assert det["region"] in CLINICAL_REGIONS
+
+    def test_detection_coordinates_are_floats(self, client):
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score", files={"file": ("test.png", self._make_png(), "image/png")})
+        det = resp.json()["detections"][0]
+        for key in ("x", "y", "w", "h", "conf"):
+            assert isinstance(det[key], float)
+
+    def test_detection_conf_matches_input(self, client):
+        model = self._mock_model([(10, 20, 30, 40, 0.75)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score", files={"file": ("test.png", self._make_png(), "image/png")})
+        det = resp.json()["detections"][0]
+        assert abs(det["conf"] - 0.75) < 0.01
+
+    def test_detection_center_coords_correct(self, client):
+        """bbox (10,20,30,40) → center (20.0, 30.0)"""
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score", files={"file": ("test.png", self._make_png(), "image/png")})
+        det = resp.json()["detections"][0]
+        assert abs(det["x"] - 20.0) < 0.01
+        assert abs(det["y"] - 30.0) < 0.01
+
+    def test_detection_region_head_neck_for_top_box(self, client):
+        """Y center near top → head_neck region"""
+        # bbox at y=10..30, center_y=20, norm=20/256≈0.078 → head_neck
+        model = self._mock_model([(100, 10, 120, 30, 0.9)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score", files={"file": ("test.png", self._make_png(), "image/png")})
+        det = resp.json()["detections"][0]
+        assert det["region"] == "head_neck"
+
+    def test_detection_region_lumbar_pelvis_for_lower_box(self, client):
+        """Y center in lower area → lumbar_pelvis region"""
+        # bbox at y=145..170, center_y=157.5, norm=157.5/256≈0.615 → lumbar_pelvis
+        model = self._mock_model([(100, 145, 120, 170, 0.9)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score", files={"file": ("test.png", self._make_png(), "image/png")})
+        det = resp.json()["detections"][0]
+        assert det["region"] == "lumbar_pelvis"
+
+    def test_multiple_detections_different_regions(self, client):
+        """複数検出が異なる部位に分類される"""
+        # head_neck: center_y=20 (norm≈0.078)
+        # lumbar_pelvis: center_y=157.5 (norm≈0.615)
+        dets = [(100, 10, 120, 30, 0.9), (100, 145, 120, 170, 0.8)]
+        model = self._mock_model(dets)
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score", files={"file": ("test.png", self._make_png(), "image/png")})
+        regions = [d["region"] for d in resp.json()["detections"]]
+        assert "head_neck" in regions
+        assert "lumbar_pelvis" in regions

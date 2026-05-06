@@ -25,7 +25,11 @@ from pydantic import BaseModel
 BASE_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(BASE_DIR))
 
-from models.score_burden import compute_bone_burden_score, extract_detections
+from models.score_burden import (
+    compute_bone_burden_score,
+    extract_detections,
+    classify_clinical_region,
+)
 
 app = FastAPI(
     title="BoneScintiVision API",
@@ -47,6 +51,15 @@ def get_model():
     return _model
 
 
+class Detection(BaseModel):
+    x: float          # center x (pixels)
+    y: float          # center y (pixels)
+    w: float          # width (pixels)
+    h: float          # height (pixels)
+    conf: float       # confidence score
+    region: str       # clinical region name
+
+
 class RiskStage(BaseModel):
     stage: str
     label: str
@@ -60,6 +73,7 @@ class ScoreResponse(BaseModel):
     mean_conf: float
     region_scores: dict[str, float]
     risk_stage: RiskStage
+    detections: List[Detection]     # 個別検出結果（座標・領域付き）
 
 
 @app.get("/health")
@@ -93,5 +107,15 @@ async def score_image(
     results = model(img, verbose=False, conf=conf)
     detections = extract_detections(results[0].boxes)
 
-    score = compute_bone_burden_score(detections, image_w=img.shape[1], image_h=img.shape[0])
+    img_h, img_w = img.shape[:2]
+    score = compute_bone_burden_score(detections, image_w=img_w, image_h=img_h)
+
+    detection_results = [
+        {
+            **d,
+            "region": classify_clinical_region(d["y"] / img_h),
+        }
+        for d in detections
+    ]
+    score["detections"] = detection_results
     return score
