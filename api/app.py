@@ -14,6 +14,7 @@ BoneScintiVision — FastAPI スコアリングエンドポイント
 
 import io
 import sys
+import logging
 import numpy as np
 import cv2
 from pathlib import Path
@@ -30,6 +31,8 @@ from models.score_burden import (
     extract_detections,
     classify_clinical_region,
 )
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="BoneScintiVision API",
@@ -82,6 +85,33 @@ def health():
     return {"status": "ok", "model_ready": model_ready}
 
 
+def _is_dicom(contents: bytes, filename: str) -> bool:
+    """DICOMファイルかどうかを判定する（マジックバイトまたは拡張子）"""
+    # DICOM magic: 128-byte preamble + "DICM" at offset 128
+    if len(contents) >= 132 and contents[128:132] == b"DICM":
+        return True
+    # 拡張子による判定（マジックバイトがないDICOMもある）
+    if filename and filename.lower().endswith(".dcm"):
+        return True
+    return False
+
+
+def _decode_dicom(contents: bytes) -> np.ndarray:
+    """DICOMバイト列からモデル入力用RGB画像を返す"""
+    import tempfile
+    from synth.dicom_reader import BoneScintiDicom
+
+    with tempfile.NamedTemporaryFile(suffix=".dcm", delete=False) as tmp:
+        tmp.write(contents)
+        tmp_path = tmp.name
+    try:
+        ds = BoneScintiDicom(tmp_path)
+        img = ds.get_single_view_rgb(size=256)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+    return img
+
+
 @app.post("/score", response_model=ScoreResponse)
 async def score_image(
     file: UploadFile = File(...),
@@ -90,14 +120,31 @@ async def score_image(
     """
     骨シンチグラフィ画像をアップロードしてスコアを取得。
 
-    - **file**: PNG/JPEG画像（256×256推奨）
+    - **file**: PNG/JPEG/DICOM画像（256×256推奨）
     - **conf**: 検出信頼度しきい値（デフォルト0.25）
     """
     contents = await file.read()
-    nparr = np.frombuffer(contents, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    if img is None:
-        raise HTTPException(status_code=400, detail="画像のデコードに失敗しました")
+    filename = file.filename or ""
+
+    if _is_dicom(contents, filename):
+        try:
+            img = _decode_dicom(contents)
+        except ImportError:
+            raise HTTPException(
+                status_code=400,
+                detail="DICOM読み込みにはpydicomが必要です: pip install pydicom",
+            )
+        except Exception as e:
+            logger.exception("DICOM decode failed")
+            raise HTTPException(
+                status_code=400,
+                detail=f"DICOMファイルのデコードに失敗しました: {e}",
+            )
+    else:
+        nparr = np.frombuffer(contents, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img is None:
+            raise HTTPException(status_code=400, detail="画像のデコードに失敗しました")
 
     try:
         model = get_model()

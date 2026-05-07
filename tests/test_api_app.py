@@ -1,6 +1,6 @@
 """api/app.py のユニットテスト（YOLO/Ultralytics不要）.
 
-対象: MODEL_PATH, BASE_DIR 定数, health エンドポイントのロジック
+対象: MODEL_PATH, BASE_DIR 定数, health エンドポイントのロジック, DICOM対応
 """
 import sys
 from pathlib import Path
@@ -663,3 +663,204 @@ class TestDetectionsField:
         regions = [d["region"] for d in resp.json()["detections"]]
         assert "head_neck" in regions
         assert "lumbar_pelvis" in regions
+
+
+# ─── _is_dicom ────────────────────────────────────────────────────────────────
+
+class TestIsDicom:
+    """_is_dicom() のDICOM判定ロジック"""
+
+    @staticmethod
+    def _make_dicom_bytes():
+        """DICOM magic bytes を持つ最小バイト列"""
+        return b"\x00" * 128 + b"DICM" + b"\x00" * 100
+
+    def test_detects_dicom_magic_bytes(self):
+        assert api_app._is_dicom(self._make_dicom_bytes(), "scan.dcm") is True
+
+    def test_detects_dicom_by_extension_without_magic(self):
+        assert api_app._is_dicom(b"no-magic-here", "scan.dcm") is True
+
+    def test_detects_dicom_extension_case_insensitive(self):
+        assert api_app._is_dicom(b"no-magic-here", "scan.DCM") is True
+
+    def test_rejects_png_file(self):
+        assert api_app._is_dicom(b"\x89PNG\r\n\x1a\n", "image.png") is False
+
+    def test_rejects_empty_bytes_with_png_name(self):
+        assert api_app._is_dicom(b"", "image.png") is False
+
+    def test_detects_magic_regardless_of_extension(self):
+        assert api_app._is_dicom(self._make_dicom_bytes(), "image.png") is True
+
+    def test_rejects_short_bytes_without_dcm_extension(self):
+        assert api_app._is_dicom(b"\x00" * 50, "file.dat") is False
+
+    def test_empty_filename(self):
+        assert api_app._is_dicom(b"random", "") is False
+
+
+# ─── DICOM POST /score ───────────────────────────────────────────────────────
+
+class TestDicomScoreEndpoint:
+    """POST /score with DICOM file upload"""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(api_app.app)
+
+    @staticmethod
+    def _make_dicom_bytes():
+        return b"\x00" * 128 + b"DICM" + b"\x00" * 100
+
+    @staticmethod
+    def _mock_boxes(detections):
+        boxes = MagicMock()
+        if not detections:
+            boxes.__len__ = lambda self: 0
+            boxes.__bool__ = lambda self: False
+            return boxes
+        xyxy = np.array([[d[0], d[1], d[2], d[3]] for d in detections])
+        confs = np.array([d[4] for d in detections])
+        xyxy_tensor = MagicMock()
+        xyxy_tensor.cpu.return_value.numpy.return_value = xyxy
+        confs_tensor = MagicMock()
+        confs_tensor.cpu.return_value.numpy.return_value = confs
+        boxes.xyxy = xyxy_tensor
+        boxes.conf = confs_tensor
+        boxes.__len__ = lambda self: len(detections)
+        boxes.__bool__ = lambda self: True
+        return boxes
+
+    def _mock_model(self, detections):
+        model = MagicMock()
+        result = MagicMock()
+        result.boxes = self._mock_boxes(detections)
+        model.return_value = [result]
+        return model
+
+    def test_dicom_upload_returns_200(self, client):
+        """DICOMファイルアップロードで正常レスポンス"""
+        fake_img = np.zeros((256, 256, 3), dtype=np.uint8)
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model), \
+             patch("api.app._decode_dicom", return_value=fake_img):
+            resp = client.post(
+                "/score",
+                files={"file": ("scan.dcm", self._make_dicom_bytes(), "application/dicom")},
+            )
+        assert resp.status_code == 200
+
+    def test_dicom_response_has_all_keys(self, client):
+        """DICOMレスポンスに必要なキーがすべて含まれる"""
+        fake_img = np.zeros((256, 256, 3), dtype=np.uint8)
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model), \
+             patch("api.app._decode_dicom", return_value=fake_img):
+            resp = client.post(
+                "/score",
+                files={"file": ("scan.dcm", self._make_dicom_bytes(), "application/dicom")},
+            )
+        data = resp.json()
+        for key in ("n_lesions", "total_bone_burden", "bsi_equivalent",
+                     "mean_conf", "region_scores", "risk_stage", "detections"):
+            assert key in data
+
+    def test_dicom_detections_included(self, client):
+        """DICOM入力でもdetectionsフィールドが含まれる"""
+        fake_img = np.zeros((256, 256, 3), dtype=np.uint8)
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model), \
+             patch("api.app._decode_dicom", return_value=fake_img):
+            resp = client.post(
+                "/score",
+                files={"file": ("scan.dcm", self._make_dicom_bytes(), "application/dicom")},
+            )
+        assert len(resp.json()["detections"]) == 1
+
+    def test_dicom_no_detections(self, client):
+        """DICOM入力で検出なしの場合"""
+        fake_img = np.zeros((256, 256, 3), dtype=np.uint8)
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model), \
+             patch("api.app._decode_dicom", return_value=fake_img):
+            resp = client.post(
+                "/score",
+                files={"file": ("scan.dcm", self._make_dicom_bytes(), "application/dicom")},
+            )
+        assert resp.json()["n_lesions"] == 0
+
+    def test_dicom_decode_error_returns_400(self, client):
+        """DICOM decode失敗 → 400"""
+        with patch("api.app._decode_dicom", side_effect=ValueError("bad DICOM")):
+            resp = client.post(
+                "/score",
+                files={"file": ("scan.dcm", self._make_dicom_bytes(), "application/dicom")},
+            )
+        assert resp.status_code == 400
+        assert "DICOM" in resp.json()["detail"]
+
+    def test_dicom_pydicom_missing_returns_400(self, client):
+        """pydicom未インストール → 400 with helpful message"""
+        with patch("api.app._decode_dicom", side_effect=ImportError("No module named 'pydicom'")):
+            resp = client.post(
+                "/score",
+                files={"file": ("scan.dcm", self._make_dicom_bytes(), "application/dicom")},
+            )
+        assert resp.status_code == 400
+        assert "pydicom" in resp.json()["detail"]
+
+    def test_dicom_detected_by_magic_not_extension(self, client):
+        """拡張子がなくてもDICM magicで判定される"""
+        fake_img = np.zeros((256, 256, 3), dtype=np.uint8)
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model), \
+             patch("api.app._decode_dicom", return_value=fake_img):
+            resp = client.post(
+                "/score",
+                files={"file": ("scan.bin", self._make_dicom_bytes(), "application/octet-stream")},
+            )
+        assert resp.status_code == 200
+
+    def test_dicom_with_conf_parameter(self, client):
+        """DICOM + confパラメータの組み合わせ"""
+        fake_img = np.zeros((256, 256, 3), dtype=np.uint8)
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model), \
+             patch("api.app._decode_dicom", return_value=fake_img):
+            resp = client.post(
+                "/score?conf=0.5",
+                files={"file": ("scan.dcm", self._make_dicom_bytes(), "application/dicom")},
+            )
+        assert resp.status_code == 200
+        _, kwargs = model.call_args
+        assert kwargs["conf"] == 0.5
+
+    def test_dcm_extension_triggers_dicom_path(self, client):
+        """".dcm"拡張子でDICOMパスが使われる（magic bytesなし）"""
+        fake_img = np.zeros((256, 256, 3), dtype=np.uint8)
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model), \
+             patch("api.app._decode_dicom", return_value=fake_img) as mock_decode:
+            resp = client.post(
+                "/score",
+                files={"file": ("scan.dcm", b"no-magic-here-at-all", "application/dicom")},
+            )
+        mock_decode.assert_called_once()
+        assert resp.status_code == 200
+
+    def test_png_not_routed_to_dicom(self, client):
+        """PNG画像はDICOMパスを通らない"""
+        import cv2 as _cv2
+        img = np.zeros((256, 256, 3), dtype=np.uint8)
+        _, buf = _cv2.imencode(".png", img)
+        png_bytes = buf.tobytes()
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model), \
+             patch("api.app._decode_dicom") as mock_decode:
+            resp = client.post(
+                "/score",
+                files={"file": ("test.png", png_bytes, "image/png")},
+            )
+        mock_decode.assert_not_called()
+        assert resp.status_code == 200
