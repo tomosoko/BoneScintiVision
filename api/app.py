@@ -13,7 +13,6 @@ BoneScintiVision — FastAPI スコアリングエンドポイント
   GET  /health         - ヘルスチェック
 """
 
-import io
 import sys
 import logging
 import numpy as np
@@ -21,7 +20,7 @@ import cv2
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Form
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from pydantic import BaseModel
 
 BASE_DIR = Path(__file__).parent.parent
@@ -126,62 +125,6 @@ def _decode_dicom(contents: bytes) -> np.ndarray:
     return img
 
 
-@app.post("/score", response_model=ScoreResponse)
-async def score_image(
-    file: UploadFile = File(...),
-    conf: float = Query(default=0.25, ge=0.0, le=1.0),
-):
-    """
-    骨シンチグラフィ画像をアップロードしてスコアを取得。
-
-    - **file**: PNG/JPEG/DICOM画像（256×256推奨）
-    - **conf**: 検出信頼度しきい値（デフォルト0.25）
-    """
-    contents = await file.read()
-    filename = file.filename or ""
-
-    if _is_dicom(contents, filename):
-        try:
-            img = _decode_dicom(contents)
-        except ImportError:
-            raise HTTPException(
-                status_code=400,
-                detail="DICOM読み込みにはpydicomが必要です: pip install pydicom",
-            )
-        except Exception as e:
-            logger.exception("DICOM decode failed")
-            raise HTTPException(
-                status_code=400,
-                detail=f"DICOMファイルのデコードに失敗しました: {e}",
-            )
-    else:
-        nparr = np.frombuffer(contents, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        if img is None:
-            raise HTTPException(status_code=400, detail="画像のデコードに失敗しました")
-
-    try:
-        model = get_model()
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-
-    results = model(img, verbose=False, conf=conf)
-    detections = extract_detections(results[0].boxes)
-
-    img_h, img_w = img.shape[:2]
-    score = compute_bone_burden_score(detections, image_w=img_w, image_h=img_h)
-
-    detection_results = [
-        {
-            **d,
-            "region": classify_clinical_region(d["y"] / img_h),
-        }
-        for d in detections
-    ]
-    score["detections"] = detection_results
-    return score
-
-
 def _decode_image(contents: bytes, filename: str) -> np.ndarray:
     """画像バイト列をデコードしてRGB numpy配列を返す。
 
@@ -214,6 +157,44 @@ def _score_single_image(img: np.ndarray, model, conf: float) -> dict:
     ]
     score["detections"] = detection_results
     return score
+
+
+@app.post("/score", response_model=ScoreResponse)
+async def score_image(
+    file: UploadFile = File(...),
+    conf: float = Query(default=0.25, ge=0.0, le=1.0),
+):
+    """
+    骨シンチグラフィ画像をアップロードしてスコアを取得。
+
+    - **file**: PNG/JPEG/DICOM画像（256×256推奨）
+    - **conf**: 検出信頼度しきい値（デフォルト0.25）
+    """
+    contents = await file.read()
+    filename = file.filename or ""
+
+    try:
+        img = _decode_image(contents, filename)
+    except ImportError:
+        raise HTTPException(
+            status_code=400,
+            detail="DICOM読み込みにはpydicomが必要です: pip install pydicom",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Image decode failed")
+        raise HTTPException(
+            status_code=400,
+            detail=f"画像のデコードに失敗しました: {e}",
+        )
+
+    try:
+        model = get_model()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    return _score_single_image(img, model, conf)
 
 
 @app.post("/score/batch", response_model=BatchScoreResponse)
