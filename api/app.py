@@ -9,6 +9,7 @@ BoneScintiVision — FastAPI スコアリングエンドポイント
 
 エンドポイント:
   POST /score          - 画像アップロード → スコア返却
+  POST /score/batch    - 複数画像アップロード → バッチスコア返却
   GET  /health         - ヘルスチェック
 """
 
@@ -20,7 +21,7 @@ import cv2
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Form
 from pydantic import BaseModel
 
 BASE_DIR = Path(__file__).parent.parent
@@ -77,6 +78,19 @@ class ScoreResponse(BaseModel):
     region_scores: dict[str, float]
     risk_stage: RiskStage
     detections: List[Detection]     # 個別検出結果（座標・領域付き）
+
+
+class BatchItemResponse(BaseModel):
+    filename: str
+    score: Optional[ScoreResponse] = None
+    error: Optional[str] = None
+
+
+class BatchScoreResponse(BaseModel):
+    total: int
+    succeeded: int
+    failed: int
+    results: List[BatchItemResponse]
 
 
 @app.get("/health")
@@ -166,3 +180,81 @@ async def score_image(
     ]
     score["detections"] = detection_results
     return score
+
+
+def _decode_image(contents: bytes, filename: str) -> np.ndarray:
+    """画像バイト列をデコードしてRGB numpy配列を返す。
+
+    DICOM/PNG/JPEG を自動判別する。
+    """
+    if _is_dicom(contents, filename):
+        return _decode_dicom(contents)
+
+    nparr = np.frombuffer(contents, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("画像のデコードに失敗しました")
+    return img
+
+
+def _score_single_image(img: np.ndarray, model, conf: float) -> dict:
+    """1枚の画像をスコアリングし、ScoreResponse相当のdictを返す。"""
+    results = model(img, verbose=False, conf=conf)
+    detections = extract_detections(results[0].boxes)
+
+    img_h, img_w = img.shape[:2]
+    score = compute_bone_burden_score(detections, image_w=img_w, image_h=img_h)
+
+    detection_results = [
+        {
+            **d,
+            "region": classify_clinical_region(d["y"] / img_h),
+        }
+        for d in detections
+    ]
+    score["detections"] = detection_results
+    return score
+
+
+@app.post("/score/batch", response_model=BatchScoreResponse)
+async def score_batch(
+    files: List[UploadFile] = File(...),
+    conf: float = Query(default=0.25, ge=0.0, le=1.0),
+):
+    """
+    複数の骨シンチグラフィ画像をバッチスコアリング。
+
+    - **files**: PNG/JPEG/DICOM画像（複数）
+    - **conf**: 検出信頼度しきい値（デフォルト0.25）
+    """
+    if not files:
+        raise HTTPException(status_code=400, detail="ファイルが指定されていません")
+
+    try:
+        model = get_model()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    results = []
+    succeeded = 0
+    failed = 0
+
+    for f in files:
+        filename = f.filename or "unknown"
+        try:
+            contents = await f.read()
+            img = _decode_image(contents, filename)
+            score = _score_single_image(img, model, conf)
+            results.append({"filename": filename, "score": score})
+            succeeded += 1
+        except Exception as e:
+            logger.exception("Batch scoring failed for %s", filename)
+            results.append({"filename": filename, "error": str(e)})
+            failed += 1
+
+    return {
+        "total": len(files),
+        "succeeded": succeeded,
+        "failed": failed,
+        "results": results,
+    }

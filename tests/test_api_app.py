@@ -864,3 +864,221 @@ class TestDicomScoreEndpoint:
             )
         mock_decode.assert_not_called()
         assert resp.status_code == 200
+
+
+# ─── POST /score/batch ───────────────────────────────────────────────────────
+
+class TestBatchScoreEndpoint:
+    """POST /score/batch — 複数画像バッチスコアリング"""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(api_app.app)
+
+    @staticmethod
+    def _make_png(width=256, height=256):
+        import cv2 as _cv2
+        img = np.zeros((height, width, 3), dtype=np.uint8)
+        _, buf = _cv2.imencode(".png", img)
+        return buf.tobytes()
+
+    @staticmethod
+    def _mock_boxes(detections):
+        boxes = MagicMock()
+        if not detections:
+            boxes.__len__ = lambda self: 0
+            boxes.__bool__ = lambda self: False
+            return boxes
+        xyxy = np.array([[d[0], d[1], d[2], d[3]] for d in detections])
+        confs = np.array([d[4] for d in detections])
+        xyxy_tensor = MagicMock()
+        xyxy_tensor.cpu.return_value.numpy.return_value = xyxy
+        confs_tensor = MagicMock()
+        confs_tensor.cpu.return_value.numpy.return_value = confs
+        boxes.xyxy = xyxy_tensor
+        boxes.conf = confs_tensor
+        boxes.__len__ = lambda self: len(detections)
+        boxes.__bool__ = lambda self: True
+        return boxes
+
+    def _mock_model(self, detections):
+        model = MagicMock()
+        result = MagicMock()
+        result.boxes = self._mock_boxes(detections)
+        model.return_value = [result]
+        return model
+
+    # ── 正常系 ──
+
+    def test_batch_returns_200(self, client):
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post(
+                "/score/batch",
+                files=[("files", ("a.png", self._make_png(), "image/png"))],
+            )
+        assert resp.status_code == 200
+
+    def test_batch_response_has_required_keys(self, client):
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post(
+                "/score/batch",
+                files=[("files", ("a.png", self._make_png(), "image/png"))],
+            )
+        data = resp.json()
+        for key in ("total", "succeeded", "failed", "results"):
+            assert key in data
+
+    def test_batch_total_matches_file_count(self, client):
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post(
+                "/score/batch",
+                files=[
+                    ("files", ("a.png", self._make_png(), "image/png")),
+                    ("files", ("b.png", self._make_png(), "image/png")),
+                    ("files", ("c.png", self._make_png(), "image/png")),
+                ],
+            )
+        assert resp.json()["total"] == 3
+
+    def test_batch_all_succeed(self, client):
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post(
+                "/score/batch",
+                files=[
+                    ("files", ("a.png", self._make_png(), "image/png")),
+                    ("files", ("b.png", self._make_png(), "image/png")),
+                ],
+            )
+        data = resp.json()
+        assert data["succeeded"] == 2
+        assert data["failed"] == 0
+
+    def test_batch_result_filenames_preserved(self, client):
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post(
+                "/score/batch",
+                files=[
+                    ("files", ("scan_001.png", self._make_png(), "image/png")),
+                    ("files", ("scan_002.png", self._make_png(), "image/png")),
+                ],
+            )
+        filenames = [r["filename"] for r in resp.json()["results"]]
+        assert filenames == ["scan_001.png", "scan_002.png"]
+
+    def test_batch_each_result_has_score(self, client):
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post(
+                "/score/batch",
+                files=[("files", ("a.png", self._make_png(), "image/png"))],
+            )
+        result = resp.json()["results"][0]
+        assert result["score"] is not None
+        assert result["error"] is None
+
+    def test_batch_score_has_all_fields(self, client):
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post(
+                "/score/batch",
+                files=[("files", ("a.png", self._make_png(), "image/png"))],
+            )
+        score = resp.json()["results"][0]["score"]
+        for key in ("n_lesions", "total_bone_burden", "bsi_equivalent",
+                     "mean_conf", "region_scores", "risk_stage", "detections"):
+            assert key in score
+
+    def test_batch_n_lesions_correct(self, client):
+        dets = [(10, 20, 30, 40, 0.9), (50, 60, 70, 80, 0.8)]
+        model = self._mock_model(dets)
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post(
+                "/score/batch",
+                files=[("files", ("a.png", self._make_png(), "image/png"))],
+            )
+        assert resp.json()["results"][0]["score"]["n_lesions"] == 2
+
+    def test_batch_with_conf_parameter(self, client):
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post(
+                "/score/batch?conf=0.5",
+                files=[("files", ("a.png", self._make_png(), "image/png"))],
+            )
+        assert resp.status_code == 200
+        _, kwargs = model.call_args
+        assert kwargs["conf"] == 0.5
+
+    # ── エラー系 ──
+
+    def test_batch_invalid_image_partial_failure(self, client):
+        """不正画像はエラー、他の画像は正常スコアリング"""
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post(
+                "/score/batch",
+                files=[
+                    ("files", ("good.png", self._make_png(), "image/png")),
+                    ("files", ("bad.png", b"not-an-image", "image/png")),
+                ],
+            )
+        data = resp.json()
+        assert data["succeeded"] == 1
+        assert data["failed"] == 1
+        assert data["results"][0]["score"] is not None
+        assert data["results"][1]["error"] is not None
+
+    def test_batch_model_unavailable_returns_503(self, client):
+        with patch("api.app.get_model", side_effect=RuntimeError("model not found")):
+            resp = client.post(
+                "/score/batch",
+                files=[("files", ("a.png", self._make_png(), "image/png"))],
+            )
+        assert resp.status_code == 503
+
+    def test_batch_conf_out_of_range_returns_422(self, client):
+        resp = client.post(
+            "/score/batch?conf=1.5",
+            files=[("files", ("a.png", self._make_png(), "image/png"))],
+        )
+        assert resp.status_code == 422
+
+    # ── DICOM in batch ──
+
+    def test_batch_dicom_file_accepted(self, client):
+        """バッチでDICOMファイルも処理可能"""
+        fake_img = np.zeros((256, 256, 3), dtype=np.uint8)
+        model = self._mock_model([(10, 20, 30, 40, 0.9)])
+        dicom_bytes = b"\x00" * 128 + b"DICM" + b"\x00" * 100
+        with patch("api.app.get_model", return_value=model), \
+             patch("api.app._decode_dicom", return_value=fake_img):
+            resp = client.post(
+                "/score/batch",
+                files=[
+                    ("files", ("scan.dcm", dicom_bytes, "application/dicom")),
+                    ("files", ("scan.png", self._make_png(), "image/png")),
+                ],
+            )
+        data = resp.json()
+        assert data["total"] == 2
+        assert data["succeeded"] == 2
+
+    # ── レスポンスモデル ──
+
+    def test_batch_response_model_types(self, client):
+        model = self._mock_model([])
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post(
+                "/score/batch",
+                files=[("files", ("a.png", self._make_png(), "image/png"))],
+            )
+        data = resp.json()
+        assert isinstance(data["total"], int)
+        assert isinstance(data["succeeded"], int)
+        assert isinstance(data["failed"], int)
+        assert isinstance(data["results"], list)
