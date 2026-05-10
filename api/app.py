@@ -34,6 +34,10 @@ from models.score_burden import (
 
 logger = logging.getLogger(__name__)
 
+# ─── 入力制限 ───────────────────────────────────────────────────────────────
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB per file
+MAX_BATCH_FILES = 20              # max files per batch request
+
 app = FastAPI(
     title="BoneScintiVision API",
     description="骨シンチグラフィ hot spot 検出・負荷スコアリング",
@@ -187,6 +191,11 @@ async def score_image(
     - **conf**: 検出信頼度しきい値（デフォルト0.25）
     """
     contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"ファイルサイズが上限を超えています（最大 {MAX_FILE_SIZE // (1024 * 1024)} MB）",
+        )
     filename = file.filename or ""
 
     try:
@@ -226,6 +235,11 @@ async def score_batch(
     """
     if not files:
         raise HTTPException(status_code=400, detail="ファイルが指定されていません")
+    if len(files) > MAX_BATCH_FILES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"バッチ上限を超えています（最大 {MAX_BATCH_FILES} ファイル）",
+        )
 
     try:
         model = get_model()
@@ -240,6 +254,10 @@ async def score_batch(
         filename = f.filename or "unknown"
         try:
             contents = await f.read()
+            if len(contents) > MAX_FILE_SIZE:
+                raise ValueError(
+                    f"ファイルサイズが上限を超えています（最大 {MAX_FILE_SIZE // (1024 * 1024)} MB）"
+                )
             img = _decode_image(contents, filename)
             score = _score_single_image(img, model, conf)
             results.append({"filename": filename, "score": score})

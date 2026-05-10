@@ -1105,3 +1105,155 @@ class TestBatchScoreEndpoint:
         assert isinstance(data["succeeded"], int)
         assert isinstance(data["failed"], int)
         assert isinstance(data["results"], list)
+
+
+# ─── アップロードサイズ制限 ──────────────────────────────────────────────────
+
+class TestUploadSizeLimits:
+    """MAX_FILE_SIZE / MAX_BATCH_FILES のバリデーション"""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(api_app.app)
+
+    @staticmethod
+    def _make_png(width=256, height=256):
+        import cv2 as _cv2
+        img = np.zeros((height, width, 3), dtype=np.uint8)
+        _, buf = _cv2.imencode(".png", img)
+        return buf.tobytes()
+
+    @staticmethod
+    def _mock_boxes(detections):
+        boxes = MagicMock()
+        if not detections:
+            boxes.__len__ = lambda self: 0
+            boxes.__bool__ = lambda self: False
+            return boxes
+        xyxy = np.array([[d[0], d[1], d[2], d[3]] for d in detections])
+        confs = np.array([d[4] for d in detections])
+        xyxy_tensor = MagicMock()
+        xyxy_tensor.cpu.return_value.numpy.return_value = xyxy
+        confs_tensor = MagicMock()
+        confs_tensor.cpu.return_value.numpy.return_value = confs
+        boxes.xyxy = xyxy_tensor
+        boxes.conf = confs_tensor
+        boxes.__len__ = lambda self: len(detections)
+        boxes.__bool__ = lambda self: True
+        return boxes
+
+    def _mock_model(self, detections=None):
+        model = MagicMock()
+        result = MagicMock()
+        result.boxes = self._mock_boxes(detections or [])
+        model.return_value = [result]
+        return model
+
+    # ── 定数の存在 ──
+
+    def test_max_file_size_constant_exists(self):
+        assert hasattr(api_app, "MAX_FILE_SIZE")
+        assert api_app.MAX_FILE_SIZE > 0
+
+    def test_max_batch_files_constant_exists(self):
+        assert hasattr(api_app, "MAX_BATCH_FILES")
+        assert api_app.MAX_BATCH_FILES > 0
+
+    def test_max_file_size_is_10mb(self):
+        assert api_app.MAX_FILE_SIZE == 10 * 1024 * 1024
+
+    def test_max_batch_files_is_20(self):
+        assert api_app.MAX_BATCH_FILES == 20
+
+    # ── POST /score ファイルサイズ制限 ──
+
+    def test_score_rejects_oversized_file(self, client):
+        """MAX_FILE_SIZE を超えるファイルは 413 で拒否"""
+        oversized = b"\x00" * (api_app.MAX_FILE_SIZE + 1)
+        resp = client.post(
+            "/score",
+            files={"file": ("big.png", oversized, "image/png")},
+        )
+        assert resp.status_code == 413
+
+    def test_score_accepts_file_at_limit(self, client):
+        """MAX_FILE_SIZE ちょうどのファイルは受け入れる"""
+        png = self._make_png()
+        model = self._mock_model()
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post(
+                "/score",
+                files={"file": ("ok.png", png, "image/png")},
+            )
+        assert resp.status_code == 200
+
+    def test_score_oversized_error_message_contains_mb(self, client):
+        oversized = b"\x00" * (api_app.MAX_FILE_SIZE + 1)
+        resp = client.post(
+            "/score",
+            files={"file": ("big.png", oversized, "image/png")},
+        )
+        assert "MB" in resp.json()["detail"]
+
+    # ── POST /score/batch ファイル数制限 ──
+
+    def test_batch_rejects_too_many_files(self, client):
+        """MAX_BATCH_FILES を超えるファイル数は 413 で拒否"""
+        png = self._make_png()
+        files = [
+            ("files", (f"img_{i}.png", png, "image/png"))
+            for i in range(api_app.MAX_BATCH_FILES + 1)
+        ]
+        resp = client.post("/score/batch", files=files)
+        assert resp.status_code == 413
+
+    def test_batch_accepts_files_at_limit(self, client):
+        """MAX_BATCH_FILES ちょうどのファイル数は受け入れる"""
+        png = self._make_png()
+        model = self._mock_model()
+        files = [
+            ("files", (f"img_{i}.png", png, "image/png"))
+            for i in range(api_app.MAX_BATCH_FILES)
+        ]
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post("/score/batch", files=files)
+        assert resp.status_code == 200
+
+    def test_batch_too_many_files_error_message(self, client):
+        png = self._make_png()
+        files = [
+            ("files", (f"img_{i}.png", png, "image/png"))
+            for i in range(api_app.MAX_BATCH_FILES + 1)
+        ]
+        resp = client.post("/score/batch", files=files)
+        assert str(api_app.MAX_BATCH_FILES) in resp.json()["detail"]
+
+    # ── POST /score/batch 個別ファイルサイズ制限 ──
+
+    def test_batch_oversized_file_counts_as_failure(self, client):
+        """バッチ内の巨大ファイルは個別エラー（他は正常処理）"""
+        png = self._make_png()
+        oversized = b"\x00" * (api_app.MAX_FILE_SIZE + 1)
+        model = self._mock_model()
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post(
+                "/score/batch",
+                files=[
+                    ("files", ("ok.png", png, "image/png")),
+                    ("files", ("big.png", oversized, "image/png")),
+                ],
+            )
+        data = resp.json()
+        assert data["succeeded"] == 1
+        assert data["failed"] == 1
+        assert data["results"][1]["error"] is not None
+
+    def test_batch_oversized_file_error_contains_mb(self, client):
+        oversized = b"\x00" * (api_app.MAX_FILE_SIZE + 1)
+        model = self._mock_model()
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post(
+                "/score/batch",
+                files=[("files", ("big.png", oversized, "image/png"))],
+            )
+        assert "MB" in resp.json()["results"][0]["error"]
