@@ -1257,3 +1257,107 @@ class TestUploadSizeLimits:
                 files=[("files", ("big.png", oversized, "image/png"))],
             )
         assert "MB" in resp.json()["results"][0]["error"]
+
+
+# ─── CORS Middleware ─────────────────────────────────────────────────────────
+
+class TestCorsMiddleware:
+    """CORS ミドルウェアの設定テスト"""
+
+    @pytest.fixture()
+    def client(self):
+        return TestClient(api_app.app)
+
+    def test_cors_origins_constant_exists(self):
+        assert hasattr(api_app, "CORS_ORIGINS")
+
+    def test_cors_origins_allows_all(self):
+        assert "*" in api_app.CORS_ORIGINS
+
+    def test_preflight_returns_200(self, client):
+        resp = client.options(
+            "/health",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert resp.status_code == 200
+
+    def test_preflight_allows_origin(self, client):
+        resp = client.options(
+            "/health",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert resp.headers.get("access-control-allow-origin") == "*"
+
+    def test_preflight_allows_post(self, client):
+        resp = client.options(
+            "/score",
+            headers={
+                "Origin": "http://example.com",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        allow_methods = resp.headers.get("access-control-allow-methods", "")
+        assert "POST" in allow_methods or "*" in allow_methods
+
+    def test_get_response_includes_cors_header(self, client):
+        resp = client.get(
+            "/health",
+            headers={"Origin": "http://localhost:8080"},
+        )
+        assert resp.headers.get("access-control-allow-origin") == "*"
+
+    def test_cors_no_credentials(self, client):
+        resp = client.options(
+            "/health",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        creds = resp.headers.get("access-control-allow-credentials", "false")
+        assert creds != "true"
+
+    def test_cors_allows_custom_headers(self, client):
+        resp = client.options(
+            "/score",
+            headers={
+                "Origin": "http://example.com",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+        allow_headers = resp.headers.get("access-control-allow-headers", "")
+        assert "content-type" in allow_headers.lower() or "*" in allow_headers
+
+    def test_cors_on_score_endpoint(self, client):
+        """POST /score レスポンスにもCORSヘッダが含まれる"""
+        png = self._minimal_png()
+        model = MagicMock()
+        result = MagicMock()
+        result.boxes = MagicMock()
+        result.boxes.xyxy = MagicMock()
+        result.boxes.xyxy.cpu.return_value.numpy.return_value = np.empty((0, 4))
+        result.boxes.conf = MagicMock()
+        result.boxes.conf.cpu.return_value.numpy.return_value = np.empty(0)
+        model.return_value = [result]
+
+        with patch("api.app.get_model", return_value=model):
+            resp = client.post(
+                "/score",
+                files={"file": ("test.png", png, "image/png")},
+                headers={"Origin": "http://localhost:3000"},
+            )
+        assert resp.headers.get("access-control-allow-origin") == "*"
+
+    @staticmethod
+    def _minimal_png() -> bytes:
+        img = np.zeros((8, 8, 3), dtype=np.uint8)
+        import cv2
+        _, buf = cv2.imencode(".png", img)
+        return buf.tobytes()

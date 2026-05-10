@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 BASE_DIR = Path(__file__).parent.parent
@@ -42,6 +43,17 @@ app = FastAPI(
     title="BoneScintiVision API",
     description="骨シンチグラフィ hot spot 検出・負荷スコアリング",
     version="0.1.0",
+)
+
+# ─── CORS ────────────────────────────────────────────────────────────────────
+CORS_ORIGINS: list[str] = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 MODEL_PATH = BASE_DIR / "runs" / "detect" / "bone_scinti_detector_v8" / "weights" / "best.pt"
