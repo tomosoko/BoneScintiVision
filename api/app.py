@@ -92,10 +92,26 @@ class BatchScoreResponse(BaseModel):
     results: List[BatchItemResponse]
 
 
-@app.get("/health")
+class HealthResponse(BaseModel):
+    status: str
+    model_ready: bool
+    api_version: str
+    model_path: str
+    model_experiment: str
+
+
+@app.get("/health", response_model=HealthResponse)
 def health():
     model_ready = MODEL_PATH.exists()
-    return {"status": "ok", "model_ready": model_ready}
+    # Extract experiment directory name (e.g. "bone_scinti_detector_v8")
+    model_experiment = MODEL_PATH.parent.parent.name if model_ready else "unknown"
+    return {
+        "status": "ok",
+        "model_ready": model_ready,
+        "api_version": app.version,
+        "model_path": str(MODEL_PATH.relative_to(BASE_DIR)),
+        "model_experiment": model_experiment,
+    }
 
 
 def _is_dicom(contents: bytes, filename: str) -> bool:

@@ -81,47 +81,70 @@ class TestHealthEndpoint:
     def client(self):
         return TestClient(api_app.app)
 
+    def _mock_model_path(self, exists=True):
+        """Create a properly configured MODEL_PATH mock."""
+        mock_path = MagicMock()
+        mock_path.exists.return_value = exists
+        mock_path.parent.parent.name = "bone_scinti_detector_v8"
+        mock_path.relative_to.return_value = Path(
+            "runs/detect/bone_scinti_detector_v8/weights/best.pt"
+        )
+        return mock_path
+
     def test_health_returns_200(self, client):
-        with patch("api.app.MODEL_PATH") as mock_path:
-            mock_path.exists.return_value = True
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
             resp = client.get("/health")
         assert resp.status_code == 200
 
     def test_health_status_is_ok(self, client):
-        with patch("api.app.MODEL_PATH") as mock_path:
-            mock_path.exists.return_value = True
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
             resp = client.get("/health")
         assert resp.json()["status"] == "ok"
 
     def test_health_model_ready_true_when_model_exists(self, client):
-        with patch("api.app.MODEL_PATH") as mock_path:
-            mock_path.exists.return_value = True
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
             resp = client.get("/health")
         assert resp.json()["model_ready"] is True
 
     def test_health_model_ready_false_when_model_missing(self, client):
-        with patch("api.app.MODEL_PATH") as mock_path:
-            mock_path.exists.return_value = False
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=False)):
             resp = client.get("/health")
         assert resp.json()["model_ready"] is False
 
     def test_health_response_has_status_key(self, client):
-        with patch("api.app.MODEL_PATH") as mock_path:
-            mock_path.exists.return_value = False
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=False)):
             resp = client.get("/health")
         assert "status" in resp.json()
 
     def test_health_response_has_model_ready_key(self, client):
-        with patch("api.app.MODEL_PATH") as mock_path:
-            mock_path.exists.return_value = False
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=False)):
             resp = client.get("/health")
         assert "model_ready" in resp.json()
 
     def test_health_content_type_is_json(self, client):
-        with patch("api.app.MODEL_PATH") as mock_path:
-            mock_path.exists.return_value = True
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
             resp = client.get("/health")
         assert "application/json" in resp.headers["content-type"]
+
+    def test_health_has_api_version(self, client):
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
+            resp = client.get("/health")
+        assert resp.json()["api_version"] == api_app.app.version
+
+    def test_health_has_model_path(self, client):
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
+            resp = client.get("/health")
+        assert "best.pt" in resp.json()["model_path"]
+
+    def test_health_has_model_experiment(self, client):
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
+            resp = client.get("/health")
+        assert resp.json()["model_experiment"] == "bone_scinti_detector_v8"
+
+    def test_health_experiment_unknown_when_model_missing(self, client):
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=False)):
+            resp = client.get("/health")
+        assert resp.json()["model_experiment"] == "unknown"
 
 
 # ─── ScoreResponse スキーマ ──────────────────────────────────────────────────
