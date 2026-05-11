@@ -1627,3 +1627,121 @@ class TestRateLimitMiddleware:
         """RATE_LIMIT_RPM と RATE_LIMIT_WINDOW のデフォルト値が妥当"""
         assert api_app.RATE_LIMIT_RPM == 60
         assert api_app.RATE_LIMIT_WINDOW == 60
+
+
+# ─── API Key Authentication ──────────────────────────────────────────────────
+
+class TestApiKeyMiddleware:
+    """ApiKeyMiddleware のユニットテスト。"""
+
+    def _make_app_with_auth(self):
+        """認証ミドルウェア付きのテスト用FastAPIアプリを返す。"""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient as TC
+
+        test_app = FastAPI()
+        test_app.add_middleware(api_app.ApiKeyMiddleware)
+
+        @test_app.get("/ping")
+        def ping():
+            return {"ok": True}
+
+        @test_app.get("/health")
+        def health():
+            return {"status": "ok"}
+
+        @test_app.get("/docs")
+        def docs():
+            return {"docs": True}
+
+        @test_app.get("/openapi.json")
+        def openapi():
+            return {}
+
+        @test_app.get("/redoc")
+        def redoc():
+            return {}
+
+        return test_app, TC(test_app)
+
+    def test_no_api_key_env_allows_all(self):
+        """環境変数未設定時は全リクエストを許可（開発モード）"""
+        _, tc = self._make_app_with_auth()
+        import os
+        os.environ.pop(api_app.API_KEY_ENV, None)
+        r = tc.get("/ping")
+        assert r.status_code == 200
+
+    def test_valid_api_key_allows_request(self):
+        """正しいAPIキーでリクエストが許可される"""
+        _, tc = self._make_app_with_auth()
+        with patch.dict("os.environ", {api_app.API_KEY_ENV: "test-secret-key"}):
+            r = tc.get("/ping", headers={"X-API-Key": "test-secret-key"})
+            assert r.status_code == 200
+
+    def test_invalid_api_key_returns_401(self):
+        """不正なAPIキーで401が返る"""
+        _, tc = self._make_app_with_auth()
+        with patch.dict("os.environ", {api_app.API_KEY_ENV: "correct-key"}):
+            r = tc.get("/ping", headers={"X-API-Key": "wrong-key"})
+            assert r.status_code == 401
+
+    def test_missing_api_key_header_returns_401(self):
+        """APIキーヘッダーなしで401が返る"""
+        _, tc = self._make_app_with_auth()
+        with patch.dict("os.environ", {api_app.API_KEY_ENV: "correct-key"}):
+            r = tc.get("/ping")
+            assert r.status_code == 401
+
+    def test_401_response_body_has_detail(self):
+        """401レスポンスにdetailフィールドが含まれる"""
+        _, tc = self._make_app_with_auth()
+        with patch.dict("os.environ", {api_app.API_KEY_ENV: "correct-key"}):
+            r = tc.get("/ping")
+            assert "detail" in r.json()
+            assert "Invalid or missing API key" in r.json()["detail"]
+
+    def test_health_exempt_from_auth(self):
+        """/health は認証不要"""
+        _, tc = self._make_app_with_auth()
+        with patch.dict("os.environ", {api_app.API_KEY_ENV: "secret"}):
+            r = tc.get("/health")
+            assert r.status_code == 200
+
+    def test_docs_exempt_from_auth(self):
+        """/docs は認証不要"""
+        _, tc = self._make_app_with_auth()
+        with patch.dict("os.environ", {api_app.API_KEY_ENV: "secret"}):
+            r = tc.get("/docs")
+            assert r.status_code == 200
+
+    def test_openapi_json_exempt_from_auth(self):
+        """/openapi.json は認証不要"""
+        _, tc = self._make_app_with_auth()
+        with patch.dict("os.environ", {api_app.API_KEY_ENV: "secret"}):
+            r = tc.get("/openapi.json")
+            assert r.status_code == 200
+
+    def test_redoc_exempt_from_auth(self):
+        """/redoc は認証不要"""
+        _, tc = self._make_app_with_auth()
+        with patch.dict("os.environ", {api_app.API_KEY_ENV: "secret"}):
+            r = tc.get("/redoc")
+            assert r.status_code == 200
+
+    def test_env_var_name_constant(self):
+        """環境変数名の定数が正しい"""
+        assert api_app.API_KEY_ENV == "BONESCINTVISION_API_KEY"
+
+    def test_timing_safe_comparison(self):
+        """タイミングセーフな比較を使用している（secrets.compare_digest）"""
+        import inspect
+        source = inspect.getsource(api_app.ApiKeyMiddleware.dispatch)
+        assert "compare_digest" in source
+
+    def test_empty_api_key_env_allows_all(self):
+        """環境変数が空文字列の場合も開発モード（全許可）"""
+        _, tc = self._make_app_with_auth()
+        with patch.dict("os.environ", {api_app.API_KEY_ENV: ""}):
+            r = tc.get("/ping")
+            assert r.status_code == 200

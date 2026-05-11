@@ -13,10 +13,12 @@ BoneScintiVision — FastAPI スコアリングエンドポイント
   GET  /health         - ヘルスチェック
 """
 
+import os
 import sys
 import time
 import logging
 import collections
+import secrets
 import numpy as np
 import cv2
 from pathlib import Path
@@ -134,6 +136,42 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(RateLimitMiddleware)
+
+
+# ─── API Key Authentication ──────────────────────────────────────────────────
+API_KEY_ENV = "BONESCINTVISION_API_KEY"
+
+
+class ApiKeyMiddleware(BaseHTTPMiddleware):
+    """APIキー認証ミドルウェア。
+
+    環境変数 ``BONESCINTVISION_API_KEY`` が設定されている場合、
+    ``X-API-Key`` ヘッダーによる認証を要求する。
+    未設定時は全リクエストを許可する（開発モード）。
+    """
+
+    EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
+
+    async def dispatch(self, request: Request, call_next):
+        expected_key = os.environ.get(API_KEY_ENV, "")
+        if not expected_key:
+            # 開発モード: APIキー未設定 → 認証スキップ
+            return await call_next(request)
+
+        if request.url.path in self.EXEMPT_PATHS:
+            return await call_next(request)
+
+        provided_key = request.headers.get("x-api-key", "")
+        if not provided_key or not secrets.compare_digest(provided_key, expected_key):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid or missing API key"},
+            )
+
+        return await call_next(request)
+
+
+app.add_middleware(ApiKeyMiddleware)
 
 MODEL_PATH = BASE_DIR / "runs" / "detect" / "bone_scinti_detector_v8" / "weights" / "best.pt"
 _model = None
