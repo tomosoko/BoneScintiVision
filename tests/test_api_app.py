@@ -2,6 +2,7 @@
 
 対象: MODEL_PATH, BASE_DIR 定数, health エンドポイントのロジック, DICOM対応
 """
+import logging
 import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -1361,3 +1362,105 @@ class TestCorsMiddleware:
         import cv2
         _, buf = cv2.imencode(".png", img)
         return buf.tobytes()
+
+
+# ─── Request Logging Middleware ──────────────────────────────────────────────
+
+class TestRequestLoggingMiddleware:
+    """RequestLoggingMiddleware — 全リクエストのアクセスログ出力を検証"""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(api_app.app)
+
+    def _mock_model_path(self, exists=True):
+        mock_path = MagicMock()
+        mock_path.exists.return_value = exists
+        mock_path.parent.parent.name = "bone_scinti_detector_v8"
+        mock_path.relative_to.return_value = Path(
+            "runs/detect/bone_scinti_detector_v8/weights/best.pt"
+        )
+        return mock_path
+
+    def test_middleware_class_exists(self):
+        assert hasattr(api_app, "RequestLoggingMiddleware")
+
+    def test_middleware_is_registered(self):
+        """RequestLoggingMiddleware がアプリに登録されている"""
+        middleware_classes = [
+            m.cls for m in api_app.app.user_middleware
+            if hasattr(m, "cls")
+        ]
+        assert api_app.RequestLoggingMiddleware in middleware_classes
+
+    def test_health_request_logged(self, client, caplog):
+        """GET /health がINFOレベルでログ出力される"""
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
+            with caplog.at_level(logging.INFO, logger="api.app"):
+                client.get("/health")
+        log_messages = [r.message for r in caplog.records if "api.app" in r.name]
+        matching = [m for m in log_messages if "GET" in m and "/health" in m]
+        assert len(matching) >= 1
+
+    def test_log_contains_status_code(self, client, caplog):
+        """ログにステータスコード 200 が含まれる"""
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
+            with caplog.at_level(logging.INFO, logger="api.app"):
+                client.get("/health")
+        log_messages = [r.message for r in caplog.records if "api.app" in r.name]
+        matching = [m for m in log_messages if "200" in m]
+        assert len(matching) >= 1
+
+    def test_log_contains_elapsed_ms(self, client, caplog):
+        """ログに処理時間（ms）が含まれる"""
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
+            with caplog.at_level(logging.INFO, logger="api.app"):
+                client.get("/health")
+        log_messages = [r.message for r in caplog.records if "api.app" in r.name]
+        matching = [m for m in log_messages if "ms" in m]
+        assert len(matching) >= 1
+
+    def test_post_score_request_logged(self, client, caplog):
+        """POST /score もログ出力される"""
+        img = np.zeros((8, 8, 3), dtype=np.uint8)
+        import cv2
+        _, buf = cv2.imencode(".png", img)
+        png = buf.tobytes()
+
+        model = MagicMock()
+        result = MagicMock()
+        result.boxes = MagicMock()
+        result.boxes.xyxy = MagicMock()
+        result.boxes.xyxy.cpu.return_value.numpy.return_value = np.empty((0, 4))
+        result.boxes.conf = MagicMock()
+        result.boxes.conf.cpu.return_value.numpy.return_value = np.empty(0)
+        model.return_value = [result]
+
+        with patch("api.app.get_model", return_value=model):
+            with caplog.at_level(logging.INFO, logger="api.app"):
+                client.post(
+                    "/score",
+                    files={"file": ("test.png", png, "image/png")},
+                )
+        log_messages = [r.message for r in caplog.records if "api.app" in r.name]
+        matching = [m for m in log_messages if "POST" in m and "/score" in m]
+        assert len(matching) >= 1
+
+    def test_error_request_logged_with_status(self, client, caplog):
+        """エラーレスポンス（422）もログ出力される"""
+        with caplog.at_level(logging.INFO, logger="api.app"):
+            client.post("/score")  # no file → 422
+        log_messages = [r.message for r in caplog.records if "api.app" in r.name]
+        matching = [m for m in log_messages if "POST" in m and "/score" in m]
+        assert len(matching) >= 1
+
+    def test_log_level_is_info(self, client, caplog):
+        """アクセスログはINFOレベルで出力される"""
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
+            with caplog.at_level(logging.DEBUG, logger="api.app"):
+                client.get("/health")
+        access_records = [
+            r for r in caplog.records
+            if "api.app" in r.name and "/health" in r.message
+        ]
+        assert all(r.levelno == logging.INFO for r in access_records)
