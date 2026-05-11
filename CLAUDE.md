@@ -69,7 +69,7 @@
   - TP=686, FP=1, FN=49, F1=0.965 — FP激減、Precision=0.999 達成
   - 生理的集積なし比率 70%→55% がPrecision劇的改善の要因
 
-## テスト (820件)
+## テスト (837件)
 ```bash
 cd /Users/kohei/develop/research/BoneScintiVision
 /Users/kohei/develop/research/ElbowVision/elbow-api/venv/bin/python -m pytest tests/ -q

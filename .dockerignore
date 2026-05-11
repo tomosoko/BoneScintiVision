@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+data/
+runs/
+*.pt
+*.pth
+*.log
+.DS_Store
+venv/
+.git/
+docs/
