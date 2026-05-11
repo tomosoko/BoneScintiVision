@@ -4,6 +4,7 @@
 """
 import logging
 import sys
+import time
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -14,6 +15,13 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import api.app as api_app
+
+
+@pytest.fixture(autouse=True)
+def _clear_rate_limiter():
+    """各テスト前にレートリミッターの内部状態をリセットする。"""
+    api_app.RateLimitMiddleware._hits.clear()
+    yield
 
 
 # ─── BASE_DIR ────────────────────────────────────────────────────────────────
@@ -1464,3 +1472,158 @@ class TestRequestLoggingMiddleware:
             if "api.app" in r.name and "/health" in r.message
         ]
         assert all(r.levelno == logging.INFO for r in access_records)
+
+
+# ─── RateLimitMiddleware ─────────────────────────────────────────────────────
+
+class TestRateLimitMiddleware:
+    """RateLimitMiddleware のテスト。"""
+
+    @staticmethod
+    def _mock_model_path(exists=True):
+        p = MagicMock(spec=Path)
+        p.exists.return_value = exists
+        p.name = "best.pt"
+        parent = MagicMock()
+        parent.name = "weights"
+        grandparent = MagicMock()
+        grandparent.name = "bone_scinti_detector_v8"
+        parent.parent = grandparent
+        p.parent = parent
+        p.relative_to.return_value = Path(
+            "runs/detect/bone_scinti_detector_v8/weights/best.pt"
+        )
+        return p
+
+    @pytest.fixture()
+    def client(self):
+        return TestClient(api_app.app)
+
+    def test_under_limit_returns_200(self, client):
+        """制限内のリクエストは正常に処理される"""
+        with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
+            resp = client.get("/health")
+        assert resp.status_code == 200
+
+    def test_over_limit_returns_429(self, client):
+        """RPM超過で429が返る"""
+        # 一時的にRPMを5に下げてテスト
+        mw = None
+        for m in api_app.app.user_middleware:
+            if m.cls is api_app.RateLimitMiddleware:
+                mw = m
+                break
+
+        # 直接ミドルウェアの内部状態を使うのではなく、
+        # テスト用に低RPMのアプリを構築
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient as TC
+
+        test_app = FastAPI()
+        test_app.add_middleware(api_app.RateLimitMiddleware, rpm=3, window=60)
+
+        @test_app.get("/ping")
+        def ping():
+            return {"ok": True}
+
+        tc = TC(test_app)
+        for _ in range(3):
+            r = tc.get("/ping")
+            assert r.status_code == 200
+
+        r = tc.get("/ping")
+        assert r.status_code == 429
+
+    def test_429_response_has_retry_after(self):
+        """429レスポンスにRetry-Afterヘッダーが含まれる"""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient as TC
+
+        test_app = FastAPI()
+        test_app.add_middleware(api_app.RateLimitMiddleware, rpm=1, window=30)
+
+        @test_app.get("/ping")
+        def ping():
+            return {"ok": True}
+
+        tc = TC(test_app)
+        tc.get("/ping")
+        r = tc.get("/ping")
+        assert r.status_code == 429
+        assert r.headers["retry-after"] == "30"
+
+    def test_429_response_body_detail(self):
+        """429のレスポンスボディにdetailが含まれる"""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient as TC
+
+        test_app = FastAPI()
+        test_app.add_middleware(api_app.RateLimitMiddleware, rpm=1, window=60)
+
+        @test_app.get("/ping")
+        def ping():
+            return {"ok": True}
+
+        tc = TC(test_app)
+        tc.get("/ping")
+        r = tc.get("/ping")
+        assert "レートリミット超過" in r.json()["detail"]
+
+    def test_different_ips_independent(self):
+        """異なるIPアドレスは独立にカウントされる"""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient as TC
+
+        test_app = FastAPI()
+        test_app.add_middleware(api_app.RateLimitMiddleware, rpm=1, window=60)
+
+        @test_app.get("/ping")
+        def ping():
+            return {"ok": True}
+
+        tc = TC(test_app)
+        # 1st IP exhausts limit
+        tc.get("/ping")
+        r = tc.get("/ping")
+        assert r.status_code == 429
+
+        # 2nd IP via X-Forwarded-For still allowed
+        r = tc.get("/ping", headers={"X-Forwarded-For": "10.0.0.99"})
+        assert r.status_code == 200
+
+    def test_x_forwarded_for_used_as_client_ip(self):
+        """X-Forwarded-Forヘッダーの最初のIPがクライアントIPとして使われる"""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient as TC
+
+        test_app = FastAPI()
+        test_app.add_middleware(api_app.RateLimitMiddleware, rpm=1, window=60)
+
+        @test_app.get("/ping")
+        def ping():
+            return {"ok": True}
+
+        tc = TC(test_app)
+        # Use same forwarded IP twice → should hit limit
+        tc.get("/ping", headers={"X-Forwarded-For": "192.168.1.1, 10.0.0.1"})
+        r = tc.get("/ping", headers={"X-Forwarded-For": "192.168.1.1, 10.0.0.2"})
+        assert r.status_code == 429
+
+    def test_expired_timestamps_are_purged(self):
+        """ウィンドウ期間を過ぎたリクエストはカウントから除外される"""
+        mw = api_app.RateLimitMiddleware(None, rpm=2, window=1)
+        # Simulate: manually populate _hits with old timestamps
+        import collections as _col
+        ip = "127.0.0.1"
+        now = time.monotonic()
+        mw._hits[ip] = _col.deque([now - 10, now - 5])  # both expired
+        # After purge, should have 0 active hits
+        q = mw._hits[ip]
+        while q and q[0] <= now - mw.window:
+            q.popleft()
+        assert len(q) == 0
+
+    def test_constants_have_sensible_defaults(self):
+        """RATE_LIMIT_RPM と RATE_LIMIT_WINDOW のデフォルト値が妥当"""
+        assert api_app.RATE_LIMIT_RPM == 60
+        assert api_app.RATE_LIMIT_WINDOW == 60

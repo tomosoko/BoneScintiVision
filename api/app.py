@@ -16,6 +16,7 @@ BoneScintiVision — FastAPI スコアリングエンドポイント
 import sys
 import time
 import logging
+import collections
 import numpy as np
 import cv2
 from pathlib import Path
@@ -23,6 +24,7 @@ from typing import List, Optional
 
 from fastapi import FastAPI, Request, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -78,6 +80,60 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(RequestLoggingMiddleware)
+
+
+# ─── Rate Limiting ───────────────────────────────────────────────────────────
+RATE_LIMIT_RPM = 60          # requests per minute per client IP
+RATE_LIMIT_WINDOW = 60       # sliding window in seconds
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """IPベースのスライディングウィンドウ・レートリミッター。
+
+    ``RATE_LIMIT_RPM`` リクエスト/分 を超えたクライアントに 429 を返す。
+    """
+
+    # Module-level shared state for easy test reset
+    _hits: dict[str, collections.deque] = {}
+
+    def __init__(self, app, rpm: int = RATE_LIMIT_RPM, window: int = RATE_LIMIT_WINDOW):
+        super().__init__(app)
+        self.rpm = rpm
+        self.window = window
+
+    def _client_ip(self, request: Request) -> str:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        return request.client.host if request.client else "unknown"
+
+    # Paths exempt from rate limiting (lightweight endpoints)
+    EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
+
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path in self.EXEMPT_PATHS:
+            return await call_next(request)
+
+        ip = self._client_ip(request)
+        now = time.monotonic()
+        q = self._hits.setdefault(ip, collections.deque())
+
+        # expire old timestamps
+        while q and q[0] <= now - self.window:
+            q.popleft()
+
+        if len(q) >= self.rpm:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": f"レートリミット超過（最大 {self.rpm} req/{self.window}s）"},
+                headers={"Retry-After": str(self.window)},
+            )
+
+        q.append(now)
+        return await call_next(request)
+
+
+app.add_middleware(RateLimitMiddleware)
 
 MODEL_PATH = BASE_DIR / "runs" / "detect" / "bone_scinti_detector_v8" / "weights" / "best.pt"
 _model = None
