@@ -1628,6 +1628,61 @@ class TestRateLimitMiddleware:
         assert api_app.RATE_LIMIT_RPM == 60
         assert api_app.RATE_LIMIT_WINDOW == 60
 
+    def test_cleanup_removes_stale_ip_entries(self):
+        """_cleanup_stale_entries で期限切れIPキーが削除される"""
+        import collections as _col
+        mw = api_app.RateLimitMiddleware(None, rpm=10, window=60)
+        now = time.monotonic()
+        # IP with all expired timestamps
+        mw._hits["stale-ip"] = _col.deque([now - 120, now - 90])
+        # IP with active timestamps
+        mw._hits["active-ip"] = _col.deque([now - 1])
+        mw._cleanup_stale_entries(now)
+        assert "stale-ip" not in mw._hits
+        assert "active-ip" in mw._hits
+
+    def test_cleanup_removes_empty_deques(self):
+        """空のdequeを持つIPキーがクリーンアップで削除される"""
+        import collections as _col
+        mw = api_app.RateLimitMiddleware(None, rpm=10, window=60)
+        now = time.monotonic()
+        mw._hits["empty-ip"] = _col.deque()
+        mw._cleanup_stale_entries(now)
+        assert "empty-ip" not in mw._hits
+
+    def test_periodic_cleanup_triggers_after_interval(self):
+        """_CLEANUP_INTERVAL回のリクエスト後にクリーンアップが実行される"""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient as TC
+
+        test_app = FastAPI()
+        test_app.add_middleware(api_app.RateLimitMiddleware, rpm=1000, window=1)
+
+        @test_app.get("/ping")
+        def ping():
+            return {"ok": True}
+
+        tc = TC(test_app)
+
+        # Reset state
+        api_app.RateLimitMiddleware._hits.clear()
+        api_app.RateLimitMiddleware._request_count = 0
+
+        # Add a stale entry manually
+        import collections as _col
+        now = time.monotonic()
+        api_app.RateLimitMiddleware._hits["old-ip"] = _col.deque([now - 100])
+
+        # Send _CLEANUP_INTERVAL requests to trigger cleanup
+        for _ in range(api_app.RateLimitMiddleware._CLEANUP_INTERVAL):
+            tc.get("/ping")
+
+        assert "old-ip" not in api_app.RateLimitMiddleware._hits
+
+    def test_cleanup_interval_constant(self):
+        """_CLEANUP_INTERVAL のデフォルト値が100"""
+        assert api_app.RateLimitMiddleware._CLEANUP_INTERVAL == 100
+
 
 # ─── API Key Authentication ──────────────────────────────────────────────────
 

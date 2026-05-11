@@ -93,10 +93,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     """IPベースのスライディングウィンドウ・レートリミッター。
 
     ``RATE_LIMIT_RPM`` リクエスト/分 を超えたクライアントに 429 を返す。
+    期限切れのIPエントリは自動的にクリーンアップされる。
     """
 
     # Module-level shared state for easy test reset
     _hits: dict[str, collections.deque] = {}
+
+    # Cleanup runs every _CLEANUP_INTERVAL requests to remove stale IP entries
+    _CLEANUP_INTERVAL = 100
+    _request_count: int = 0
 
     def __init__(self, app, rpm: int = RATE_LIMIT_RPM, window: int = RATE_LIMIT_WINDOW):
         super().__init__(app)
@@ -109,6 +114,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return forwarded.split(",")[0].strip()
         return request.client.host if request.client else "unknown"
 
+    def _cleanup_stale_entries(self, now: float) -> None:
+        """Remove IP keys whose deques are empty or fully expired."""
+        stale = [
+            ip for ip, q in self._hits.items()
+            if not q or q[-1] <= now - self.window
+        ]
+        for ip in stale:
+            del self._hits[ip]
+
     # Paths exempt from rate limiting (lightweight endpoints)
     EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
 
@@ -118,6 +132,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         ip = self._client_ip(request)
         now = time.monotonic()
+
+        # Periodic cleanup of stale IP entries to prevent memory leak
+        RateLimitMiddleware._request_count += 1
+        if RateLimitMiddleware._request_count >= self._CLEANUP_INTERVAL:
+            RateLimitMiddleware._request_count = 0
+            self._cleanup_stale_entries(now)
+
         q = self._hits.setdefault(ip, collections.deque())
 
         # expire old timestamps
