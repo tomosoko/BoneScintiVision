@@ -19,6 +19,7 @@ import time
 import logging
 import collections
 import secrets
+from contextlib import asynccontextmanager
 import numpy as np
 import cv2
 from pathlib import Path
@@ -45,10 +46,37 @@ logger = logging.getLogger(__name__)
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB per file
 MAX_BATCH_FILES = 20              # max files per batch request
 
+# ─── Model ───────────────────────────────────────────────────────────────────
+MODEL_PATH = BASE_DIR / "runs" / "detect" / "bone_scinti_detector_v8" / "weights" / "best.pt"
+_model = None
+
+
+def get_model():
+    global _model
+    if _model is None:
+        if not MODEL_PATH.exists():
+            raise RuntimeError(f"モデルが見つかりません: {MODEL_PATH}")
+        from ultralytics import YOLO
+        _model = YOLO(str(MODEL_PATH))
+    return _model
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Preload the YOLO model at startup to avoid cold-start latency."""
+    try:
+        get_model()
+        logger.info("Model loaded: %s", MODEL_PATH)
+    except RuntimeError:
+        logger.warning("Model not found at %s — /score will return 503", MODEL_PATH)
+    yield
+
+
 app = FastAPI(
     title="BoneScintiVision API",
     description="骨シンチグラフィ hot spot 検出・負荷スコアリング",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # ─── CORS ────────────────────────────────────────────────────────────────────
@@ -193,19 +221,6 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(ApiKeyMiddleware)
-
-MODEL_PATH = BASE_DIR / "runs" / "detect" / "bone_scinti_detector_v8" / "weights" / "best.pt"
-_model = None
-
-
-def get_model():
-    global _model
-    if _model is None:
-        if not MODEL_PATH.exists():
-            raise RuntimeError(f"モデルが見つかりません: {MODEL_PATH}")
-        from ultralytics import YOLO
-        _model = YOLO(str(MODEL_PATH))
-    return _model
 
 
 class Detection(BaseModel):

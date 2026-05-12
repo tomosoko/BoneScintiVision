@@ -155,7 +155,7 @@ docker run -p 8765:8765 \
 ```bash
 cd /Users/kohei/develop/research/BoneScintiVision
 /Users/kohei/develop/research/ElbowVision/elbow-api/venv/bin/python -m pytest tests/ -q
-# 820 passed
+# 837 passed
 ```
 
 ## スコアリング仕様
