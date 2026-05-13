@@ -10,7 +10,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+RUN useradd --create-home --no-log-init appuser
+
+COPY --chown=appuser:appuser . .
+
+USER appuser
 
 # Model weights must be provided at build or runtime:
 #   docker build --build-arg MODEL_WEIGHTS=runs/detect/.../best.pt .

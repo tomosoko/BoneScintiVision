@@ -27,7 +27,13 @@ class TestDockerfile:
     def test_copies_requirements_first(self, dockerfile):
         """requirements.txt を先にCOPYしてキャッシュを活用する。"""
         req_pos = dockerfile.index("COPY requirements.txt")
-        copy_all_pos = dockerfile.index("COPY . .")
+        # COPY . . (with optional --chown flag)
+        copy_all_lines = [
+            (i, line) for i, line in enumerate(dockerfile.splitlines())
+            if "COPY" in line and ". ." in line and "requirements" not in line
+        ]
+        assert len(copy_all_lines) >= 1
+        copy_all_pos = dockerfile.index(copy_all_lines[0][1])
         assert req_pos < copy_all_pos
 
     def test_pip_install_no_cache(self, dockerfile):
@@ -52,6 +58,22 @@ class TestDockerfile:
             stripped = line.strip()
             if stripped.startswith("COPY") or stripped.startswith("ADD"):
                 assert ".pt" not in stripped
+
+    def test_runs_as_non_root_user(self, dockerfile):
+        """コンテナがroot以外のユーザーで実行されることを確認（セキュリティ）。"""
+        assert "USER" in dockerfile
+        # USER root でないことを確認
+        user_lines = [
+            line.strip() for line in dockerfile.splitlines()
+            if line.strip().startswith("USER")
+        ]
+        assert len(user_lines) >= 1
+        assert user_lines[-1] != "USER root"
+
+    def test_healthcheck_configured(self, dockerfile):
+        """HEALTHCHECKが設定されていることを確認。"""
+        assert "HEALTHCHECK" in dockerfile
+        assert "/health" in dockerfile
 
 
 class TestDockerignore:
