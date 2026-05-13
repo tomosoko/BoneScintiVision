@@ -1404,27 +1404,27 @@ class TestRequestLoggingMiddleware:
     def test_health_request_logged(self, client, caplog):
         """GET /health がINFOレベルでログ出力される"""
         with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
-            with caplog.at_level(logging.INFO, logger="api.app"):
+            with caplog.at_level(logging.INFO, logger="api.middleware"):
                 client.get("/health")
-        log_messages = [r.message for r in caplog.records if "api.app" in r.name]
+        log_messages = [r.message for r in caplog.records if "api.middleware" in r.name]
         matching = [m for m in log_messages if "GET" in m and "/health" in m]
         assert len(matching) >= 1
 
     def test_log_contains_status_code(self, client, caplog):
         """ログにステータスコード 200 が含まれる"""
         with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
-            with caplog.at_level(logging.INFO, logger="api.app"):
+            with caplog.at_level(logging.INFO, logger="api.middleware"):
                 client.get("/health")
-        log_messages = [r.message for r in caplog.records if "api.app" in r.name]
+        log_messages = [r.message for r in caplog.records if "api.middleware" in r.name]
         matching = [m for m in log_messages if "200" in m]
         assert len(matching) >= 1
 
     def test_log_contains_elapsed_ms(self, client, caplog):
         """ログに処理時間（ms）が含まれる"""
         with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
-            with caplog.at_level(logging.INFO, logger="api.app"):
+            with caplog.at_level(logging.INFO, logger="api.middleware"):
                 client.get("/health")
-        log_messages = [r.message for r in caplog.records if "api.app" in r.name]
+        log_messages = [r.message for r in caplog.records if "api.middleware" in r.name]
         matching = [m for m in log_messages if "ms" in m]
         assert len(matching) >= 1
 
@@ -1445,31 +1445,31 @@ class TestRequestLoggingMiddleware:
         model.return_value = [result]
 
         with patch("api.app.get_model", return_value=model):
-            with caplog.at_level(logging.INFO, logger="api.app"):
+            with caplog.at_level(logging.INFO, logger="api.middleware"):
                 client.post(
                     "/score",
                     files={"file": ("test.png", png, "image/png")},
                 )
-        log_messages = [r.message for r in caplog.records if "api.app" in r.name]
+        log_messages = [r.message for r in caplog.records if "api.middleware" in r.name]
         matching = [m for m in log_messages if "POST" in m and "/score" in m]
         assert len(matching) >= 1
 
     def test_error_request_logged_with_status(self, client, caplog):
         """エラーレスポンス（422）もログ出力される"""
-        with caplog.at_level(logging.INFO, logger="api.app"):
+        with caplog.at_level(logging.INFO, logger="api.middleware"):
             client.post("/score")  # no file → 422
-        log_messages = [r.message for r in caplog.records if "api.app" in r.name]
+        log_messages = [r.message for r in caplog.records if "api.middleware" in r.name]
         matching = [m for m in log_messages if "POST" in m and "/score" in m]
         assert len(matching) >= 1
 
     def test_log_level_is_info(self, client, caplog):
         """アクセスログはINFOレベルで出力される"""
         with patch("api.app.MODEL_PATH", self._mock_model_path(exists=True)):
-            with caplog.at_level(logging.DEBUG, logger="api.app"):
+            with caplog.at_level(logging.DEBUG, logger="api.middleware"):
                 client.get("/health")
         access_records = [
             r for r in caplog.records
-            if "api.app" in r.name and "/health" in r.message
+            if "api.middleware" in r.name and "/health" in r.message
         ]
         assert all(r.levelno == logging.INFO for r in access_records)
 
