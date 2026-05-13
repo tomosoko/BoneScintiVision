@@ -1786,7 +1786,7 @@ class TestApiKeyMiddleware:
 
     def test_env_var_name_constant(self):
         """環境変数名の定数が正しい"""
-        assert api_app.API_KEY_ENV == "BONESCINTVISION_API_KEY"
+        assert api_app.API_KEY_ENV == "BONESCINTIVISION_API_KEY"
 
     def test_timing_safe_comparison(self):
         """タイミングセーフな比較を使用している（secrets.compare_digest）"""

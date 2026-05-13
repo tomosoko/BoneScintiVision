@@ -24,7 +24,7 @@ RATE_LIMIT_RPM = 60          # requests per minute per client IP
 RATE_LIMIT_WINDOW = 60       # sliding window in seconds
 
 # ─── API Key env var name ─────────────────────────────────────────────────────
-API_KEY_ENV = "BONESCINTVISION_API_KEY"
+API_KEY_ENV = "BONESCINTIVISION_API_KEY"
 
 
 # ─── Request Logging ─────────────────────────────────────────────────────────
@@ -117,7 +117,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 class ApiKeyMiddleware(BaseHTTPMiddleware):
     """APIキー認証ミドルウェア。
 
-    環境変数 ``BONESCINTVISION_API_KEY`` が設定されている場合、
+    環境変数 ``BONESCINTIVISION_API_KEY`` が設定されている場合、
     ``X-API-Key`` ヘッダーによる認証を要求する。
     未設定時は全リクエストを許可する（開発モード）。
     """

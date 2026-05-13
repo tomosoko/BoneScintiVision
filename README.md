@@ -136,7 +136,7 @@ uvicorn api.app:app --reload --port 8765
 | CORS | 全オリジン許可（`*`） |
 | Request Logging | メソッド・パス・ステータス・処理時間をログ出力 |
 | Rate Limiting | IP ベース 60 req/min、超過時 429 応答 |
-| API Key Auth | 環境変数 `BONESCINTVISION_API_KEY` 設定時に `X-API-Key` ヘッダー認証を要求 |
+| API Key Auth | 環境変数 `BONESCINTIVISION_API_KEY` 設定時に `X-API-Key` ヘッダー認証を要求 |
 
 ### Docker
 
@@ -147,7 +147,7 @@ docker build -t bonescintvision .
 # 起動（モデル重みをマウント）
 docker run -p 8765:8765 \
   -v /path/to/runs/detect/bone_scinti_detector_v8/weights:/app/runs/detect/bone_scinti_detector_v8/weights \
-  -e BONESCINTVISION_API_KEY=your-secret-key \
+  -e BONESCINTIVISION_API_KEY=your-secret-key \
   bonescintvision
 ```
 
