@@ -52,8 +52,11 @@ BoneScintiVision/
 │   ├── infer_demo.py         # 推論デモ
 │   └── eval_final.py         # 訓練後一括評価
 ├── api/
-│   └── app.py                # FastAPI スコアリングエンドポイント
+│   ├── app.py                # FastAPI スコアリングエンドポイント
+│   └── middleware.py          # ミドルウェア (ログ・レートリミット・API キー認証)
 ├── tests/                    # ユニットテスト (837 件)
+├── Dockerfile                # コンテナ化デプロイ (python:3.12-slim)
+├── .dockerignore             # モデル重み・データ除外
 ├── EXPERIMENTS.md            # 実験ログ (EXP-001〜EXP-009)
 └── requirements.txt
 ```
